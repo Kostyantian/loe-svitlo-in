@@ -52,15 +52,13 @@ export default function Home() {
   useEffect(() => {
     // Створення звукового елементу
     audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiH0fPTgjMGHm7A7+OZURE');
+    console.log('🔊 Audio елемент створено');
 
     // Запит на дозвіл для сповіщень
     if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-          setNotificationPermission(permission);
-        });
-      }
+      const currentPermission = Notification.permission;
+      console.log('🔔 Поточний дозвіл на notifications:', currentPermission);
+      setNotificationPermission(currentPermission);
     }
 
     // Реєстрація Service Worker для PWA
@@ -83,25 +81,51 @@ export default function Home() {
   }, []);
 
   const playNotificationSound = () => {
+    console.log('🔊 Спроба відтворити звук...');
     if (audioRef.current) {
-      audioRef.current.play().catch(err => console.error('Error playing sound:', err));
+      audioRef.current.play()
+        .then(() => console.log('✅ Звук відтворено успішно'))
+        .catch(err => console.error('❌ Помилка відтворення звуку:', err));
+    } else {
+      console.error('❌ Audio елемент не створений');
     }
   };
 
   const showNotification = (title: string, body: string) => {
+    console.log('🔔 Спроба показати notification...');
+    console.log('🔔 Дозвіл на notifications:', notificationPermission);
+
     if (notificationPermission === 'granted') {
-      new Notification(title, {
-        body,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        tag: 'schedule-update',
-      });
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: 'schedule-update',
+        });
+        console.log('✅ Notification створено:', notification);
+      } catch (err) {
+        console.error('❌ Помилка створення notification:', err);
+      }
+    } else {
+      console.warn('⚠️ Notification не показано - дозвіл:', notificationPermission);
     }
   };
 
   const fetchLatestImage = async () => {
     try {
       setError(null);
+      console.log('🔄 Починаю fetch даних...');
+
+      // Перевірка дозволу на notifications
+      if ('Notification' in window) {
+        const currentPermission = Notification.permission;
+        if (currentPermission !== notificationPermission) {
+          console.log('🔔 Оновлення статусу дозволу:', currentPermission);
+          setNotificationPermission(currentPermission);
+        }
+      }
+
       const response = await fetch('/api/menus');
 
       if (!response.ok) {
@@ -109,6 +133,7 @@ export default function Home() {
       }
 
       const data: MenuResponse = await response.json();
+      console.log('✅ Дані отримано');
 
       if (data['hydra:member'] && data['hydra:member'].length > 0) {
         const menu = data['hydra:member'][0];
@@ -117,6 +142,9 @@ export default function Home() {
           // Знайти елемент "Arhiv" для перевірки змін
           const archiveItem = menu.menuItems.find(item => item.name === 'Arhiv');
           const archiveLength = archiveItem ? archiveItem.children.length : 0;
+
+          console.log('📊 Поточна довжина архіву:', archiveLength);
+          console.log('📊 Попередня довжина архіву:', previousArchiveLengthRef.current);
 
           // Взяти перший елемент (Today)
           const todayItem = menu.menuItems[0];
@@ -134,11 +162,16 @@ export default function Home() {
             if (previousArchiveLengthRef.current !== null &&
                 previousArchiveLengthRef.current !== archiveLength) {
               // Графік змінився!
+              console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
               playNotificationSound();
               showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
               );
+            } else if (previousArchiveLengthRef.current === null) {
+              console.log('ℹ️ Перше завантаження - сповіщення не показується');
+            } else {
+              console.log('✅ Довжина архіву не змінилася - сповіщення не потрібне');
             }
 
             // Оновлення попереднього значення
@@ -173,9 +206,20 @@ export default function Home() {
   const currentHtml = isMobile ? menuData?.mobileHtml : menuData?.desktopHtml;
 
   const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
+    console.log('🔔 Запит дозволу на notifications...');
+    if ('Notification' in window) {
       const permission = await Notification.requestPermission();
+      console.log('🔔 Отримано дозвіл:', permission);
       setNotificationPermission(permission);
+
+      // Тестове сповіщення після надання дозволу
+      if (permission === 'granted') {
+        console.log('✅ Дозвіл надано! Показую тестове сповіщення');
+        setTimeout(() => {
+          playNotificationSound();
+          showNotification('Дозвіл надано!', 'Тепер ви будете отримувати сповіщення про оновлення графіку');
+        }, 500);
+      }
     }
   };
 
@@ -235,6 +279,18 @@ export default function Home() {
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Графіків в архіві: {menuData.archiveLength}
               </p>
+            )}
+
+            {notificationPermission === 'granted' && (
+              <button
+                onClick={() => {
+                  playNotificationSound();
+                  showNotification('Тест!', 'Це тестове сповіщення');
+                }}
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
+              >
+                Тестувати сповіщення
+              </button>
             )}
           </div>
         )}
