@@ -10,6 +10,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -35,4 +36,28 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  return self.clients.claim();
+});
+
+// Обробка notification через Service Worker (для Android)
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow('/')
+  );
+});
+
+// Показ notification через Service Worker
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, body, icon, badge, tag } = event.data;
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge,
+      tag,
+      requireInteraction: false,
+      vibrate: [200, 100, 200],
+    });
+  }
 });

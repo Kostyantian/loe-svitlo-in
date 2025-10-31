@@ -91,19 +91,35 @@ export default function Home() {
     }
   };
 
-  const showNotification = (title: string, body: string) => {
+  const showNotification = async (title: string, body: string) => {
     console.log('🔔 Спроба показати notification...');
     console.log('🔔 Дозвіл на notifications:', notificationPermission);
 
     if (notificationPermission === 'granted') {
       try {
-        const notification = new Notification(title, {
-          body,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          tag: 'schedule-update',
-        });
-        console.log('✅ Notification створено:', notification);
+        // Спробувати використати Service Worker (краще для Android)
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          console.log('📱 Використовую Service Worker для notification (Android-friendly)');
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title,
+            body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'schedule-update',
+          });
+          console.log('✅ Notification відправлено через Service Worker');
+        } else {
+          // Fallback на звичайний Notification API (для iOS/Desktop)
+          console.log('💻 Використовую звичайний Notification API');
+          const notification = new Notification(title, {
+            body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'schedule-update',
+          });
+          console.log('✅ Notification створено:', notification);
+        }
       } catch (err) {
         console.error('❌ Помилка створення notification:', err);
       }
