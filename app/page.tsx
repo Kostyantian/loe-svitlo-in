@@ -1,64 +1,167 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface MenuItem {
+  '@id': string;
+  '@type': string;
+  id: number;
+  name: string;
+  slug?: string;
+  orders: number;
+  children: MenuItem[];
+  menu?: string;
+  imageUrl?: string;
+  description?: string;
+  rawHtml?: string;
+  rawMobileHtml?: string;
+  parent?: string;
+}
+
+interface MenuResponse {
+  '@context': string;
+  '@id': string;
+  '@type': string;
+  'hydra:member': Array<{
+    '@id': string;
+    '@type': string;
+    id: number;
+    name: string;
+    type: string;
+    menuItems: MenuItem[];
+  }>;
+}
+
+interface MenuData {
+  desktopImageUrl: string;
+  mobileImageUrl: string;
+  desktopHtml: string;
+  mobileHtml: string;
+}
 
 export default function Home() {
+  const [menuData, setMenuData] = useState<MenuData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Реєстрація Service Worker для PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then(() => console.log('Service Worker registered'))
+        .catch((err) => console.error('Service Worker registration failed:', err));
+    }
+
+    // Перевірка чи це мобільний пристрій
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const fetchLatestImage = async () => {
+    try {
+      setError(null);
+      const response = await fetch('/api/menus');
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
+      const data: MenuResponse = await response.json();
+
+      if (data['hydra:member'] && data['hydra:member'].length > 0) {
+        const menu = data['hydra:member'][0];
+
+        if (menu.menuItems && menu.menuItems.length > 0) {
+          // Взяти перший елемент (Today)
+          const todayItem = menu.menuItems[0];
+
+          if (todayItem.imageUrl && todayItem.slug) {
+            setMenuData({
+              desktopImageUrl: todayItem.imageUrl,
+              mobileImageUrl: todayItem.slug,
+              desktopHtml: todayItem.rawHtml || '',
+              mobileHtml: todayItem.rawMobileHtml || '',
+            });
+          }
+        }
+      }
+
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Перший запит при завантаженні
+    fetchLatestImage();
+
+    // Запит кожні 10 хвилин (600000 мс)
+    const interval = setInterval(() => {
+      fetchLatestImage();
+    }, 600000);
+
+    // Очищення інтервалу при розмонтуванні компонента
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentImageUrl = isMobile ? menuData?.mobileImageUrl : menuData?.desktopImageUrl;
+  const currentHtml = isMobile ? menuData?.mobileHtml : menuData?.desktopHtml;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+      <main className="flex min-h-screen w-full max-w-4xl flex-col items-center justify-center gap-8 py-8 px-4 bg-white dark:bg-black">
+        <h1 className="text-3xl font-semibold text-black dark:text-zinc-50 text-center">
+          Графік відключень електроенергії
+        </h1>
+
+        {loading && (
+          <p className="text-lg text-zinc-600 dark:text-zinc-400">
+            Завантаження...
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        )}
+
+        {error && (
+          <p className="text-lg text-red-600 dark:text-red-400">
+            Помилка: {error}
+          </p>
+        )}
+
+        {!loading && !error && menuData && currentImageUrl && (
+          <div className="w-full flex flex-col items-center gap-6">
+            <img
+              src={`https://api.loe.lviv.ua${currentImageUrl}`}
+              alt="Графік відключень"
+              className="w-full h-auto rounded-lg shadow-lg"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+            {currentHtml && (
+              <div
+                className="w-full text-zinc-800 dark:text-zinc-200 text-sm md:text-base text-center"
+                dangerouslySetInnerHTML={{ __html: currentHtml }}
+              />
+            )}
+
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Оновлюється автоматично кожні 10 хвилин
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && !menuData && (
+          <p className="text-lg text-zinc-600 dark:text-zinc-400">
+            Дані не знайдено
+          </p>
+        )}
       </main>
     </div>
   );
