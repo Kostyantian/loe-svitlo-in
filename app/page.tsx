@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import Image from 'next/image';
+import { useEffect, useState, useRef } from 'react';
 
 interface MenuItem {
   '@id': string;
@@ -89,7 +88,7 @@ export default function Home() {
     }
   };
 
-  const showNotification = useCallback((title: string, body: string) => {
+  const showNotification = (title: string, body: string) => {
     if (notificationPermission === 'granted') {
       new Notification(title, {
         body,
@@ -98,9 +97,9 @@ export default function Home() {
         tag: 'schedule-update',
       });
     }
-  }, [notificationPermission]);
+  };
 
-  const fetchLatestImage = useCallback(async () => {
+  const fetchLatestImage = async () => {
     try {
       setError(null);
       const response = await fetch('/api/menus');
@@ -154,7 +153,7 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
     }
-  }, [showNotification]);
+  };
 
   useEffect(() => {
     // Перший запит при завантаженні
@@ -167,6 +166,7 @@ export default function Home() {
 
     // Очищення інтервалу при розмонтуванні компонента
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const currentImageUrl = isMobile ? menuData?.mobileImageUrl : menuData?.desktopImageUrl;
