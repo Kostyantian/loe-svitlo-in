@@ -186,9 +186,21 @@ export default function Home() {
           // Взяти перший елемент (Today)
           const todayItem = menu.menuItems[0];
 
+          console.log('📋 Today item:', {
+            name: todayItem.name,
+            hasImageUrl: !!todayItem.imageUrl,
+            hasSlug: !!todayItem.slug,
+            hasDescription: !!todayItem.description,
+            imageUrl: todayItem.imageUrl,
+            slug: todayItem.slug,
+            description: todayItem.description?.substring(0, 100)
+          });
+
           // Перевірка чи є графік або є опис про відміну
           const hasSchedule = todayItem.imageUrl && todayItem.slug;
           const hasDescription = todayItem.description && todayItem.description.trim().length > 0;
+
+          console.log('✅ Перевірки:', { hasSchedule, hasDescription });
 
           if (hasSchedule || hasDescription) {
             const newMenuData: MenuData = {
@@ -198,6 +210,8 @@ export default function Home() {
               mobileHtml: todayItem.rawMobileHtml || todayItem.description || '',
               archiveLength,
             };
+
+            console.log('💾 Встановлюю menuData з графіком:', newMenuData);
 
             // Перевірка чи змінилася довжина архіву
             if (previousArchiveLengthRef.current !== null &&
@@ -220,13 +234,16 @@ export default function Home() {
             setMenuData(newMenuData);
           } else {
             // Немає ні графіка ні опису - показуємо повідомлення
-            setMenuData({
+            const emptyMenuData: MenuData = {
               desktopImageUrl: '',
               mobileImageUrl: '',
               desktopHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               mobileHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               archiveLength,
-            });
+            };
+            console.log('💾 Встановлюю menuData БЕЗ графіка:', emptyMenuData);
+            setMenuData(emptyMenuData);
+            previousArchiveLengthRef.current = archiveLength;
           }
         }
       }
@@ -254,6 +271,16 @@ export default function Home() {
 
   const currentImageUrl = isMobile ? menuData?.mobileImageUrl : menuData?.desktopImageUrl;
   const currentHtml = isMobile ? menuData?.mobileHtml : menuData?.desktopHtml;
+
+  console.log('🎨 Render state:', {
+    loading,
+    error,
+    hasMenuData: !!menuData,
+    menuData,
+    isMobile,
+    currentImageUrl,
+    currentHtmlLength: currentHtml?.length
+  });
 
   const requestNotificationPermission = async () => {
     console.log('🔔 Запит дозволу на notifications...');
@@ -322,7 +349,7 @@ export default function Home() {
               </div>
             )}
 
-            {currentHtml && (
+            {currentHtml && !currentHtml.includes('не застосовуються') && (
               <div
                 className="w-full text-zinc-800 dark:text-zinc-200 text-sm md:text-base text-center"
                 dangerouslySetInnerHTML={{ __html: currentHtml }}
