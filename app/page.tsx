@@ -65,8 +65,15 @@ export default function Home() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
-        .then(() => console.log('Service Worker registered'))
-        .catch((err) => console.error('Service Worker registration failed:', err));
+        .then((registration) => {
+          console.log('✅ Service Worker registered:', registration);
+          // Чекаємо поки Service Worker стане активним
+          return navigator.serviceWorker.ready;
+        })
+        .then(() => {
+          console.log('✅ Service Worker ready and active');
+        })
+        .catch((err) => console.error('❌ Service Worker registration failed:', err));
     }
 
     // Перевірка чи це мобільний пристрій
@@ -98,17 +105,19 @@ export default function Home() {
     if (notificationPermission === 'granted') {
       try {
         // Спробувати використати Service Worker (краще для Android)
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        if ('serviceWorker' in navigator) {
+          // Чекаємо поки Service Worker стане готовим
+          const registration = await navigator.serviceWorker.ready;
           console.log('📱 Використовую Service Worker для notification (Android-friendly)');
-          navigator.serviceWorker.controller.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            title,
+
+          await registration.showNotification(title, {
             body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
             tag: 'schedule-update',
-          });
-          console.log('✅ Notification відправлено через Service Worker');
+            requireInteraction: false,
+          } as NotificationOptions);
+          console.log('✅ Notification показано через Service Worker');
         } else {
           // Fallback на звичайний Notification API (для iOS/Desktop)
           console.log('💻 Використовую звичайний Notification API');
@@ -122,6 +131,18 @@ export default function Home() {
         }
       } catch (err) {
         console.error('❌ Помилка створення notification:', err);
+        // Fallback якщо Service Worker не спрацював
+        try {
+          const notification = new Notification(title, {
+            body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'schedule-update',
+          });
+          console.log('✅ Notification створено через fallback:', notification);
+        } catch (fallbackErr) {
+          console.error('❌ Fallback також не спрацював:', fallbackErr);
+        }
       }
     } else {
       console.warn('⚠️ Notification не показано - дозвіл:', notificationPermission);
@@ -165,12 +186,16 @@ export default function Home() {
           // Взяти перший елемент (Today)
           const todayItem = menu.menuItems[0];
 
-          if (todayItem.imageUrl && todayItem.slug) {
+          // Перевірка чи є графік або є опис про відміну
+          const hasSchedule = todayItem.imageUrl && todayItem.slug;
+          const hasDescription = todayItem.description && todayItem.description.trim().length > 0;
+
+          if (hasSchedule || hasDescription) {
             const newMenuData: MenuData = {
-              desktopImageUrl: todayItem.imageUrl,
-              mobileImageUrl: todayItem.slug,
-              desktopHtml: todayItem.rawHtml || '',
-              mobileHtml: todayItem.rawMobileHtml || '',
+              desktopImageUrl: todayItem.imageUrl || '',
+              mobileImageUrl: todayItem.slug || '',
+              desktopHtml: todayItem.rawHtml || todayItem.description || '',
+              mobileHtml: todayItem.rawMobileHtml || todayItem.description || '',
               archiveLength,
             };
 
@@ -193,6 +218,15 @@ export default function Home() {
             // Оновлення попереднього значення
             previousArchiveLengthRef.current = archiveLength;
             setMenuData(newMenuData);
+          } else {
+            // Немає ні графіка ні опису - показуємо повідомлення
+            setMenuData({
+              desktopImageUrl: '',
+              mobileImageUrl: '',
+              desktopHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
+              mobileHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
+              archiveLength,
+            });
           }
         }
       }
@@ -272,13 +306,21 @@ export default function Home() {
           </p>
         )}
 
-        {!loading && !error && menuData && currentImageUrl && (
+        {!loading && !error && menuData && (
           <div className="w-full flex flex-col items-center gap-6">
-            <img
-              src={`https://api.loe.lviv.ua${currentImageUrl}`}
-              alt="Графік відключень"
-              className="w-full h-auto rounded-lg shadow-lg"
-            />
+            {currentImageUrl ? (
+              <img
+                src={`https://api.loe.lviv.ua${currentImageUrl}`}
+                alt="Графік відключень"
+                className="w-full h-auto rounded-lg shadow-lg"
+              />
+            ) : (
+              <div className="w-full bg-green-100 dark:bg-green-900 p-8 rounded-lg">
+                <p className="text-2xl text-center text-green-800 dark:text-green-200 font-semibold">
+                  ✅ Сьогодні графіки відключень не застосовуються
+                </p>
+              </div>
+            )}
 
             {currentHtml && (
               <div
