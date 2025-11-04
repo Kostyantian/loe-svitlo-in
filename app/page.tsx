@@ -79,7 +79,14 @@ export default function Home() {
 
     // Перевірка чи це мобільний пристрій
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const width = window.innerWidth;
+      const isMobileDevice = width < 768;
+      console.log('📱 Перевірка розміру екрану:', {
+        width,
+        isMobile: isMobileDevice,
+        userAgent: navigator.userAgent
+      });
+      setIsMobile(isMobileDevice);
     };
 
     checkMobile();
@@ -154,6 +161,7 @@ export default function Home() {
     try {
       setError(null);
       console.log('🔄 Починаю fetch даних...');
+      console.log('📱 User Agent:', navigator.userAgent);
 
       // Перевірка дозволу на notifications
       if ('Notification' in window) {
@@ -164,14 +172,26 @@ export default function Home() {
         }
       }
 
-      const response = await fetch('/api/menus');
+      console.log('🌐 Виконую fetch до /api/menus...');
+      const response = await fetch('/api/menus', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response ok:', response.ok);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch data');
+        throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
 
       const data: MenuResponse = await response.json();
-      console.log('✅ Дані отримано');
+      console.log('✅ Дані отримано, розмір:', JSON.stringify(data).length);
+      console.log('📋 hydra:member існує?', !!data['hydra:member']);
+      console.log('📋 hydra:member length:', data['hydra:member']?.length);
 
       if (data['hydra:member'] && data['hydra:member'].length > 0) {
         const menu = data['hydra:member'][0];
@@ -195,7 +215,9 @@ export default function Home() {
             hasDescription: !!todayItem?.description,
             imageUrl: todayItem?.imageUrl,
             slug: todayItem?.slug,
-            description: todayItem?.description?.substring(0, 100)
+            description: todayItem?.description?.substring(0, 100),
+            rawHtml: todayItem?.rawHtml?.substring(0, 50),
+            rawMobileHtml: todayItem?.rawMobileHtml?.substring(0, 50),
           });
 
           console.log('📋 Tomorrow item:', {
@@ -205,6 +227,8 @@ export default function Home() {
             hasDescription: !!tomorrowItem?.description,
             imageUrl: tomorrowItem?.imageUrl,
             slug: tomorrowItem?.slug,
+            rawHtml: tomorrowItem?.rawHtml?.substring(0, 50),
+            rawMobileHtml: tomorrowItem?.rawMobileHtml?.substring(0, 50),
           });
 
           // Перевірка чи є графік в Today
@@ -280,12 +304,23 @@ export default function Home() {
             setMenuData(emptyMenuData);
             previousArchiveLengthRef.current = archiveLength;
           }
+        } else {
+          console.warn('⚠️ menu.menuItems порожній або не існує');
+          setError('Дані меню порожні');
         }
+      } else {
+        console.warn('⚠️ hydra:member порожній або не існує');
+        setError('Відповідь API не містить даних');
       }
 
       setLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('❌ Помилка при fetch:', err);
+      console.error('❌ Тип помилки:', typeof err);
+      console.error('❌ Error stack:', err instanceof Error ? err.stack : 'N/A');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Error message:', errorMessage);
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -304,8 +339,20 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const currentImageUrl = isMobile ? menuData?.mobileImageUrl : menuData?.desktopImageUrl;
-  const currentHtml = isMobile ? menuData?.mobileHtml : menuData?.desktopHtml;
+  // Вибір URL з fallback: спочатку пробуємо mobile/desktop, якщо порожній - беремо інший
+  let currentImageUrl = isMobile ? menuData?.mobileImageUrl : menuData?.desktopImageUrl;
+  let currentHtml = isMobile ? menuData?.mobileHtml : menuData?.desktopHtml;
+
+  // Fallback: якщо поточний URL порожній, спробувати інший
+  if (!currentImageUrl || currentImageUrl.trim() === '') {
+    currentImageUrl = isMobile ? menuData?.desktopImageUrl : menuData?.mobileImageUrl;
+    console.log('⚠️ Fallback: використовую альтернативний imageUrl:', currentImageUrl);
+  }
+
+  if (!currentHtml || currentHtml.trim() === '') {
+    currentHtml = isMobile ? menuData?.desktopHtml : menuData?.mobileHtml;
+    console.log('⚠️ Fallback: використовую альтернативний HTML:', currentHtml?.substring(0, 50));
+  }
 
   console.log('🎨 Render state:', {
     loading,
@@ -314,7 +361,9 @@ export default function Home() {
     menuData,
     isMobile,
     currentImageUrl,
-    currentHtmlLength: currentHtml?.length
+    currentHtmlLength: currentHtml?.length,
+    desktopImageUrl: menuData?.desktopImageUrl,
+    mobileImageUrl: menuData?.mobileImageUrl,
   });
 
   const requestNotificationPermission = async () => {
@@ -363,9 +412,30 @@ export default function Home() {
         )}
 
         {error && (
-          <p className="text-lg text-red-600 dark:text-red-400">
-            Помилка: {error}
-          </p>
+          <div className="w-full max-w-2xl">
+            <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg">
+              <p className="text-lg text-red-800 dark:text-red-200 font-semibold mb-2">
+                Помилка завантаження даних
+              </p>
+              <p className="text-sm text-red-700 dark:text-red-300 mb-4">
+                {error}
+              </p>
+              <button
+                onClick={() => {
+                  console.log('🔄 Ручне оновлення...');
+                  setError(null);
+                  setLoading(true);
+                  fetchLatestImage();
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded"
+              >
+                Спробувати ще раз
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 text-center">
+              Перевірте консоль браузера (DevTools) для детальної інформації
+            </p>
+          </div>
         )}
 
         {!loading && !error && menuData && (
@@ -425,6 +495,7 @@ export default function Home() {
         {!loading && !error && !menuData && (
           <p className="text-lg text-zinc-600 dark:text-zinc-400">
             Дані не знайдено
+            {menuData}
           </p>
         )}
       </main>
