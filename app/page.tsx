@@ -38,6 +38,7 @@ interface MenuData {
   desktopHtml: string;
   mobileHtml: string;
   archiveLength: number;
+  isShowingTomorrow?: boolean;
 }
 
 export default function Home() {
@@ -183,35 +184,69 @@ export default function Home() {
           console.log('📊 Поточна довжина архіву:', archiveLength);
           console.log('📊 Попередня довжина архіву:', previousArchiveLengthRef.current);
 
-          // Взяти перший елемент (Today)
-          const todayItem = menu.menuItems[0];
+          // Знайти Today та Tomorrow елементи
+          const todayItem = menu.menuItems.find(item => item.name === 'Today');
+          const tomorrowItem = menu.menuItems.find(item => item.name === 'Tomorrow');
 
           console.log('📋 Today item:', {
-            name: todayItem.name,
-            hasImageUrl: !!todayItem.imageUrl,
-            hasSlug: !!todayItem.slug,
-            hasDescription: !!todayItem.description,
-            imageUrl: todayItem.imageUrl,
-            slug: todayItem.slug,
-            description: todayItem.description?.substring(0, 100)
+            name: todayItem?.name,
+            hasImageUrl: !!todayItem?.imageUrl,
+            hasSlug: !!todayItem?.slug,
+            hasDescription: !!todayItem?.description,
+            imageUrl: todayItem?.imageUrl,
+            slug: todayItem?.slug,
+            description: todayItem?.description?.substring(0, 100)
           });
 
-          // Перевірка чи є графік або є опис про відміну
-          const hasSchedule = todayItem.imageUrl && todayItem.slug;
-          const hasDescription = todayItem.description && todayItem.description.trim().length > 0;
+          console.log('📋 Tomorrow item:', {
+            name: tomorrowItem?.name,
+            hasImageUrl: !!tomorrowItem?.imageUrl,
+            hasSlug: !!tomorrowItem?.slug,
+            hasDescription: !!tomorrowItem?.description,
+            imageUrl: tomorrowItem?.imageUrl,
+            slug: tomorrowItem?.slug,
+          });
 
-          console.log('✅ Перевірки:', { hasSchedule, hasDescription });
+          // Перевірка чи є графік в Today
+          const todayHasSchedule = todayItem && todayItem.imageUrl && todayItem.slug;
+          const todayHasDescription = todayItem && todayItem.description && todayItem.description.trim().length > 0;
 
-          if (hasSchedule || hasDescription) {
+          // Перевірка чи є графік в Tomorrow
+          const tomorrowHasSchedule = tomorrowItem && tomorrowItem.imageUrl && tomorrowItem.slug;
+
+          console.log('✅ Перевірки:', {
+            todayHasSchedule,
+            todayHasDescription,
+            tomorrowHasSchedule
+          });
+
+          // Вибираємо який елемент показувати
+          let itemToShow = null;
+          let isShowingTomorrow = false;
+
+          if (todayHasSchedule || todayHasDescription) {
+            // Якщо є Today - показуємо його
+            itemToShow = todayItem;
+            isShowingTomorrow = false;
+            console.log('✅ Показую Today');
+          } else if (tomorrowHasSchedule) {
+            // Якщо немає Today, але є Tomorrow - показуємо Tomorrow
+            itemToShow = tomorrowItem;
+            isShowingTomorrow = true;
+            console.log('✅ Today немає, показую Tomorrow');
+          }
+
+          if (itemToShow) {
             const newMenuData: MenuData = {
-              desktopImageUrl: todayItem.imageUrl || '',
-              mobileImageUrl: todayItem.slug || '',
-              desktopHtml: todayItem.rawHtml || todayItem.description || '',
-              mobileHtml: todayItem.rawMobileHtml || todayItem.description || '',
+              desktopImageUrl: itemToShow.imageUrl || '',
+              mobileImageUrl: itemToShow.slug || '',
+              desktopHtml: itemToShow.rawHtml || itemToShow.description || '',
+              mobileHtml: itemToShow.rawMobileHtml || itemToShow.description || '',
               archiveLength,
+              isShowingTomorrow,
             };
 
-            console.log('💾 Встановлюю menuData з графіком:', newMenuData);
+            console.log(`💾 Встановлюю menuData з графіком (${isShowingTomorrow ? 'Tomorrow' : 'Today'}):`, newMenuData);
 
             // Перевірка чи змінилася довжина архіву
             if (previousArchiveLengthRef.current !== null &&
@@ -233,7 +268,7 @@ export default function Home() {
             previousArchiveLengthRef.current = archiveLength;
             setMenuData(newMenuData);
           } else {
-            // Немає ні графіка ні опису - показуємо повідомлення
+            // Немає ні Today ні Tomorrow - показуємо повідомлення
             const emptyMenuData: MenuData = {
               desktopImageUrl: '',
               mobileImageUrl: '',
@@ -335,6 +370,13 @@ export default function Home() {
 
         {!loading && !error && menuData && (
           <div className="w-full flex flex-col items-center gap-6">
+            {menuData.isShowingTomorrow && (
+              <div className="w-full bg-blue-100 dark:bg-blue-900 p-4 rounded-lg">
+                <p className="text-xl text-center text-blue-800 dark:text-blue-200 font-semibold">
+                  📅 Показано графік на завтра
+                </p>
+              </div>
+            )}
             {currentImageUrl ? (
               <img
                 src={`https://api.loe.lviv.ua${currentImageUrl}`}
