@@ -49,6 +49,7 @@ export default function Home() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousArchiveLengthRef = useRef<number | null>(null);
+  const previousScheduleHashRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Створення звукового елементу
@@ -104,6 +105,17 @@ export default function Home() {
     } else {
       console.error('❌ Audio елемент не створений');
     }
+  };
+
+  const createScheduleHash = (todayItem: MenuItem | undefined, tomorrowItem: MenuItem | undefined) => {
+    // Створюємо унікальний хеш на основі ключових полів графіків
+    const todayHash = todayItem
+      ? `T:${todayItem.imageUrl || ''}|${todayItem.slug || ''}|${todayItem.description || ''}`
+      : 'T:empty';
+    const tomorrowHash = tomorrowItem
+      ? `TM:${tomorrowItem.imageUrl || ''}|${tomorrowItem.slug || ''}|${tomorrowItem.description || ''}`
+      : 'TM:empty';
+    return `${todayHash}::${tomorrowHash}`;
   };
 
   const showNotification = async (title: string, body: string) => {
@@ -260,6 +272,11 @@ export default function Home() {
             console.log('✅ Today немає, показую Tomorrow');
           }
 
+          // Створюємо хеш поточного стану графіків
+          const currentScheduleHash = createScheduleHash(todayItem, tomorrowItem);
+          console.log('🔑 Поточний хеш графіка:', currentScheduleHash);
+          console.log('🔑 Попередній хеш графіка:', previousScheduleHashRef.current);
+
           if (itemToShow) {
             const newMenuData: MenuData = {
               desktopImageUrl: itemToShow.imageUrl || '',
@@ -272,23 +289,26 @@ export default function Home() {
 
             console.log(`💾 Встановлюю menuData з графіком (${isShowingTomorrow ? 'Tomorrow' : 'Today'}):`, newMenuData);
 
-            // Перевірка чи змінилася довжина архіву
-            if (previousArchiveLengthRef.current !== null &&
-                previousArchiveLengthRef.current !== archiveLength) {
+            // Перевірка чи змінився графік (порівнюємо хеші)
+            if (previousScheduleHashRef.current !== null &&
+                previousScheduleHashRef.current !== currentScheduleHash) {
               // Графік змінився!
               console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
+              console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
+              console.log('🔔 Новий хеш:', currentScheduleHash);
               playNotificationSound();
               showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
               );
-            } else if (previousArchiveLengthRef.current === null) {
+            } else if (previousScheduleHashRef.current === null) {
               console.log('ℹ️ Перше завантаження - сповіщення не показується');
             } else {
-              console.log('✅ Довжина архіву не змінилася - сповіщення не потрібне');
+              console.log('✅ Графік не змінився - сповіщення не потрібне');
             }
 
-            // Оновлення попереднього значення
+            // Оновлення попереднього значення хешу та архіву
+            previousScheduleHashRef.current = currentScheduleHash;
             previousArchiveLengthRef.current = archiveLength;
             setMenuData(newMenuData);
           } else {
@@ -301,7 +321,22 @@ export default function Home() {
               archiveLength,
             };
             console.log('💾 Встановлюю menuData БЕЗ графіка:', emptyMenuData);
+
+            // Перевірка чи змінився стан (з'явився/зник графік)
+            if (previousScheduleHashRef.current !== null &&
+                previousScheduleHashRef.current !== currentScheduleHash) {
+              console.log('🔔 СТАН ГРАФІКІВ ЗМІНИВСЯ! Показую сповіщення');
+              console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
+              console.log('🔔 Новий хеш:', currentScheduleHash);
+              playNotificationSound();
+              showNotification(
+                'Графіки відключень оновлено!',
+                'Графіки відключень змінилися. Перевірте актуальну інформацію.'
+              );
+            }
+
             setMenuData(emptyMenuData);
+            previousScheduleHashRef.current = currentScheduleHash;
             previousArchiveLengthRef.current = archiveLength;
           }
         } else {
