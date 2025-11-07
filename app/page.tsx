@@ -530,7 +530,7 @@ export default function Home() {
         {!loading && !error && !menuData && (
           <p className="text-lg text-zinc-600 dark:text-zinc-400">
             Дані не знайдено
-            {menuData}
+            {menuData || loading || error }
           </p>
         )}
       </main>
