@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
+  // Правильна генерація статичних файлів для Vercel
+  transpilePackages: [],
 };
 
 export default nextConfig;
