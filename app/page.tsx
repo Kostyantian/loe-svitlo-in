@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 interface MenuItem {
   '@id': string;
@@ -151,14 +151,24 @@ export default function Home() {
                       console.log('🔄 Нова версія встановлена!');
 
                       if (navigator.serviceWorker.controller) {
-                        // Є старий SW - оновлюємо
+                        // Є старий SW - оновлюємо автоматично
                         console.log('🔄 Оновлюю з старої версії...');
                         if (!swUpdateCheckRef.current) {
                           swUpdateCheckRef.current = true;
+                          
+                          // Показати сповіщення про оновлення
+                          if (notificationPermission === 'granted') {
+                            showNotification(
+                              '🔄 Оновлення додатку',
+                              'Встановлено нову версію. Перезавантаження через 3 секунди...'
+                            );
+                          }
+                          
+                          // Автоматичне перезавантаження через 3 секунди
                           setTimeout(() => {
                             console.log('🔄 Автоматичне перезавантаження...');
                             window.location.reload();
-                          }, 2000);
+                          }, 3000);
                         }
                       } else {
                         // Перше встановлення
@@ -211,6 +221,7 @@ export default function Home() {
     window.addEventListener('resize', checkMobile);
 
     return () => window.removeEventListener('resize', checkMobile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSound]);
 
   const playNotificationSound = () => {
@@ -245,7 +256,7 @@ export default function Home() {
       .join('|');
   };
 
-  const showNotification = async (title: string, body: string) => {
+  const showNotification = useCallback(async (title: string, body: string) => {
     console.log('🔔 Спроба показати notification...');
     console.log('🔔 Дозвіл на notifications:', notificationPermission);
 
@@ -303,7 +314,7 @@ export default function Home() {
     } else {
       console.warn('⚠️ Notification не показано - дозвіл:', notificationPermission);
     }
-  };
+  }, [notificationPermission]);
 
   const fetchLatestImage = async () => {
     try {
