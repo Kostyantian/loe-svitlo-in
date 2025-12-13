@@ -327,41 +327,62 @@ export default function Home() {
           const archiveLength = archiveItem ? archiveItem.children.length : 0;
           const archiveChildren = archiveItem ? archiveItem.children : [];
 
+          console.log('📊 ========== ПЕРЕВІРКА АРХІВУ ==========');
           console.log('📊 Поточна довжина архіву:', archiveLength);
           console.log('📊 Попередня довжина архіву:', previousArchiveLengthRef.current);
+          console.log('📊 Це перше завантаження?', previousArchiveLengthRef.current === null);
 
           // Створюємо хеш архіву для детальнішого відстеження
           const currentArchiveHash = createArchiveHash(archiveChildren);
           console.log('🔑 Поточний хеш архіву:', currentArchiveHash);
           console.log('🔑 Попередній хеш архіву:', previousArchiveHashRef.current);
+          console.log('🔑 Хеші різні?', previousArchiveHashRef.current !== currentArchiveHash);
+          console.log('🔑 Попередній хеш не null?', previousArchiveHashRef.current !== null);
 
           // Перевірка чи змінився архів (довжина АБО вміст)
           const archiveChanged = previousArchiveHashRef.current !== null &&
                                   previousArchiveHashRef.current !== currentArchiveHash;
 
+          console.log('🔍 archiveChanged =', archiveChanged);
+
           if (archiveChanged) {
             const lengthChanged = previousArchiveLengthRef.current !== archiveLength;
-            console.log('🔔 АРХІВ ЗМІНИВСЯ! Показую сповіщення');
+            console.log('🔔 ==========================================');
+            console.log('🔔 🔔 🔔 АРХІВ ЗМІНИВСЯ! 🔔 🔔 🔔');
+            console.log('🔔 ==========================================');
             console.log('🔔 Довжина змінилася:', lengthChanged);
             console.log('🔔 Попередня довжина:', previousArchiveLengthRef.current);
             console.log('🔔 Нова довжина:', archiveLength);
+            console.log('🔔 Різниця:', archiveLength - (previousArchiveLengthRef.current || 0));
             console.log('🔔 Попередній хеш:', previousArchiveHashRef.current);
             console.log('🔔 Новий хеш:', currentArchiveHash);
+            console.log('🔔 Дозвіл Notification.permission:', Notification.permission);
+            console.log('🔔 Дозвіл notificationPermission state:', notificationPermission);
 
             if (lengthChanged) {
-              showNotification(
+              console.log('🔔 Викликаю showNotification для зміни довжини...');
+              await showNotification(
                 'Архів графіків оновлено!',
                 `Кількість графіків в архіві змінилася: було ${previousArchiveLengthRef.current}, стало ${archiveLength}`
               );
             } else {
-              showNotification(
+              console.log('🔔 Викликаю showNotification для зміни вмісту...');
+              await showNotification(
                 'Архів графіків оновлено!',
                 'Зміни в архіві графіків відключень. Перевірте оновлення.'
               );
             }
+            console.log('✅ ✅ ✅ Сповіщення про архів ВІДПРАВЛЕНО!');
+          } else {
+            console.log('ℹ️ Архів НЕ змінився, сповіщення не потрібне');
+            if (previousArchiveHashRef.current === null) {
+              console.log('ℹ️ Причина: перше завантаження (previousArchiveHashRef = null)');
+            } else if (previousArchiveHashRef.current === currentArchiveHash) {
+              console.log('ℹ️ Причина: хеші однакові');
+            }
           }
 
-          // Оновлюємо попереднє значення хешу архіву
+          // ВАЖЛИВО: Оновлюємо попереднє значення хешу архіву ТІЛЬКИ ПІСЛЯ перевірки
           previousArchiveHashRef.current = currentArchiveHash;
 
           // Знайти Today та Tomorrow елементи
@@ -452,13 +473,18 @@ export default function Home() {
             if (previousScheduleHashRef.current !== null &&
                 previousScheduleHashRef.current !== currentScheduleHash) {
               // Графік змінився!
+              console.log('🔔 ========================================');
               console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
+              console.log('🔔 ========================================');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              showNotification(
+              console.log('🔔 Дозвіл:', Notification.permission);
+              
+              await showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
               );
+              console.log('✅ Сповіщення про графік відправлено');
             } else if (previousScheduleHashRef.current === null) {
               console.log('ℹ️ Перше завантаження - сповіщення не показується');
             } else {
@@ -488,13 +514,18 @@ export default function Home() {
             // Перевірка чи змінився стан (з'явився/зник графік)
             if (previousScheduleHashRef.current !== null &&
                 previousScheduleHashRef.current !== currentScheduleHash) {
+              console.log('🔔 ========================================');
               console.log('🔔 СТАН ГРАФІКІВ ЗМІНИВСЯ! Показую сповіщення');
+              console.log('🔔 ========================================');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              showNotification(
+              console.log('🔔 Дозвіл:', Notification.permission);
+              
+              await showNotification(
                 'Графіки відключень оновлено!',
                 'Графіки відключень змінилися. Перевірте актуальну інформацію.'
               );
+              console.log('✅ Сповіщення про стан відправлено');
             }
 
             setMenuData(emptyMenuData);
