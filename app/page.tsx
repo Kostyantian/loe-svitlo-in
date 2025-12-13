@@ -53,37 +53,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [selectedSound, setSelectedSound] = useState<string>('sound1');
   const [appVersion, setAppVersion] = useState<string>('');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousArchiveLengthRef = useRef<number | null>(null);
   const previousScheduleHashRef = useRef<string | null>(null);
   const previousArchiveHashRef = useRef<string | null>(null);
   const swUpdateCheckRef = useRef<boolean>(false);
 
   useEffect(() => {
-    // Завантаження збереженого звуку з localStorage
-    const savedSound = localStorage.getItem('notificationSound');
-    if (savedSound && ['sound1', 'sound2', 'sound3'].includes(savedSound)) {
-      setSelectedSound(savedSound);
-      console.log('📦 Завантажено збережений звук:', savedSound);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Бібліотека звуків
-    const sounds = {
-      sound1: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiH0fPTgjMGHm7A7+OZURE',
-      sound2: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQoGAACBk5qbo6Gck5KOjIuLiYmIiIiIiYqMj5OYnqWssLW6vsHDxcfIycrKysvKysrJycjHxsXEw8LBwL++vby7ubm4t7a1tLOysrGxsLCwsLCwsLCxsbKys7S1tre4ubq7vL6/wcLDxMXGx8jJysrKysvLysrJyMfGxcTDwb+9u7m3tbOxr62rqaelo6Genp2dnJubmpqamZmZmZqanJ2foaOmqayvsLO1t7m7vcDCxMbIyszO0NHS1NXX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+//8A',
-      sound3: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
-    };
-
-    // Створення звукового елементу з вибраним звуком
-    audioRef.current = new Audio(sounds[selectedSound as keyof typeof sounds]);
-    console.log('🔊 Audio елемент створено/оновлено з звуком:', selectedSound);
-
-    // Збереження вибраного звуку в localStorage
-    localStorage.setItem('notificationSound', selectedSound);
+    console.log('� Ініціалізація додатку...');
 
     // Запит на дозвіл для сповіщень
     if ('Notification' in window) {
@@ -222,18 +199,7 @@ export default function Home() {
 
     return () => window.removeEventListener('resize', checkMobile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSound]);
-
-  const playNotificationSound = () => {
-    console.log('🔊 Спроба відтворити звук...');
-    if (audioRef.current) {
-      audioRef.current.play()
-        .then(() => console.log('✅ Звук відтворено успішно'))
-        .catch(err => console.error('❌ Помилка відтворення звуку:', err));
-    } else {
-      console.error('❌ Audio елемент не створений');
-    }
-  };
+  }, []);
 
   const createScheduleHash = (todayItem: MenuItem | undefined, tomorrowItem: MenuItem | undefined) => {
     // Створюємо унікальний хеш на основі ключових полів графіків
@@ -382,8 +348,6 @@ export default function Home() {
             console.log('🔔 Попередній хеш:', previousArchiveHashRef.current);
             console.log('🔔 Новий хеш:', currentArchiveHash);
 
-            playNotificationSound();
-
             if (lengthChanged) {
               showNotification(
                 'Архів графіків оновлено!',
@@ -491,7 +455,6 @@ export default function Home() {
               console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              playNotificationSound();
               showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
@@ -528,7 +491,6 @@ export default function Home() {
               console.log('🔔 СТАН ГРАФІКІВ ЗМІНИВСЯ! Показую сповіщення');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              playNotificationSound();
               showNotification(
                 'Графіки відключень оновлено!',
                 'Графіки відключень змінилися. Перевірте актуальну інформацію.'
@@ -614,7 +576,6 @@ export default function Home() {
       if (permission === 'granted') {
         console.log('✅ Дозвіл надано! Показую тестове сповіщення');
         setTimeout(() => {
-          playNotificationSound();
           showNotification('Дозвіл надано!', 'Тепер ви будете отримувати сповіщення про оновлення графіку');
         }, 500);
       }
@@ -777,32 +738,15 @@ export default function Home() {
                 🔄 Оновити зараз
               </button>
 
-              {/* Вибір звуку */}
-              <div className="w-full">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Звук сповіщення:
-                </label>
-                <select
-                  value={selectedSound}
-                  onChange={(e) => setSelectedSound(e.target.value)}
-                  className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 text-zinc-900 dark:text-zinc-100 py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="sound1">🔔 Звук 1 (Стандартний)</option>
-                  <option value="sound2">🔔 Звук 2 (Довгий)</option>
-                  <option value="sound3">🔔 Звук 3 (Тихий)</option>
-                </select>
-              </div>
-
               {/* Кнопка тесту сповіщення */}
               {notificationPermission === 'granted' && (
                 <button
                   onClick={() => {
-                    playNotificationSound();
-                    showNotification('Тест!', 'Це тестове сповіщення');
+                    showNotification('Тест!', 'Це тестове сповіщення зі звуком пристрою');
                   }}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
                 >
-                  🔊 Тестувати сповіщення
+                  � Тестувати сповіщення
                 </button>
               )}
             </div>
