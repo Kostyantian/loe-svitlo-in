@@ -315,8 +315,18 @@ export default function Home() {
 
       const data: MenuResponse = await response.json();
       console.log('✅ Дані отримано, розмір:', JSON.stringify(data).length);
+      console.log('📋 Повна структура відповіді:', JSON.stringify(data).substring(0, 500));
+      console.log('📋 Ключі верхнього рівня:', Object.keys(data));
       console.log('📋 hydra:member існує?', !!data['hydra:member']);
+      console.log('📋 hydra:member тип:', typeof data['hydra:member']);
+      console.log('📋 hydra:member є масив?', Array.isArray(data['hydra:member']));
       console.log('📋 hydra:member length:', data['hydra:member']?.length);
+
+      // Перевірка чи є дані взагалі
+      if (!data || typeof data !== 'object') {
+        console.error('❌ Відповідь не є об\'єктом!');
+        throw new Error('Неправильний формат відповіді API');
+      }
 
       if (data['hydra:member'] && data['hydra:member'].length > 0) {
         const menu = data['hydra:member'][0];
@@ -619,6 +629,18 @@ export default function Home() {
         <h1 className="text-3xl font-semibold text-black dark:text-zinc-50 text-center">
           Графік відключень електроенергії
         </h1>
+
+        {/* Підказка для встановлення PWA на iOS */}
+        {typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window.navigator as unknown as {standalone?: boolean}).standalone && (
+          <div className="w-full bg-green-100 dark:bg-green-900 p-4 rounded-lg">
+            <p className="text-sm text-green-800 dark:text-green-200 text-center mb-2 font-semibold">
+              📱 Встановіть додаток на iPhone
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300 text-center">
+              Натисніть <span className="font-bold">Поділитися</span> (⬆️) → <span className="font-bold">На екран &quot;Домой&quot;</span>
+            </p>
+          </div>
+        )}
 
         {notificationPermission === 'default' && (
           <div className="w-full bg-blue-100 dark:bg-blue-900 p-4 rounded-lg">
