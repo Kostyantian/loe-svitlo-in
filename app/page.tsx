@@ -60,7 +60,33 @@ export default function Home() {
   const swUpdateCheckRef = useRef<boolean>(false);
 
   useEffect(() => {
-    console.log('� Ініціалізація додатку...');
+    console.log('🚀 Ініціалізація додатку...');
+
+    // Завантажити попередні значення з localStorage при старті
+    if (typeof window !== 'undefined') {
+      try {
+        const savedArchiveHash = localStorage.getItem('loe_archive_hash');
+        const savedScheduleHash = localStorage.getItem('loe_schedule_hash');
+        const savedArchiveLength = localStorage.getItem('loe_archive_length');
+
+        if (savedArchiveHash) {
+          previousArchiveHashRef.current = savedArchiveHash;
+          console.log('📦 Завантажено збережений хеш архіву з localStorage:', savedArchiveHash.substring(0, 50));
+        }
+
+        if (savedScheduleHash) {
+          previousScheduleHashRef.current = savedScheduleHash;
+          console.log('📦 Завантажено збережений хеш графіка з localStorage:', savedScheduleHash.substring(0, 50));
+        }
+
+        if (savedArchiveLength) {
+          previousArchiveLengthRef.current = parseInt(savedArchiveLength, 10);
+          console.log('📦 Завантажено збережену довжину архіву з localStorage:', savedArchiveLength);
+        }
+      } catch (err) {
+        console.error('❌ Помилка завантаження з localStorage:', err);
+      }
+    }
 
     // Запит на дозвіл для сповіщень
     if ('Notification' in window) {
@@ -394,6 +420,13 @@ export default function Home() {
 
           // ВАЖЛИВО: Оновлюємо попереднє значення хешу архіву ТІЛЬКИ ПІСЛЯ перевірки
           previousArchiveHashRef.current = currentArchiveHash;
+          // Зберегти в localStorage для збереження між перезавантаженнями
+          try {
+            localStorage.setItem('loe_archive_hash', currentArchiveHash);
+            console.log('💾 Збережено хеш архіву в localStorage');
+          } catch (err) {
+            console.error('❌ Помилка збереження в localStorage:', err);
+          }
 
           // Знайти Today та Tomorrow елементи
           const todayItem = menu.menuItems.find(item => item.name === 'Today');
@@ -503,6 +536,13 @@ export default function Home() {
 
             // Оновлення попереднього значення хешу
             previousScheduleHashRef.current = currentScheduleHash;
+            // Зберегти в localStorage
+            try {
+              localStorage.setItem('loe_schedule_hash', currentScheduleHash);
+              console.log('💾 Збережено хеш графіка в localStorage');
+            } catch (err) {
+              console.error('❌ Помилка збереження хешу графіка в localStorage:', err);
+            }
             setMenuData(newMenuData);
           } else {
             // Немає ні Today ні Tomorrow - показуємо повідомлення
@@ -540,10 +580,24 @@ export default function Home() {
 
             setMenuData(emptyMenuData);
             previousScheduleHashRef.current = currentScheduleHash;
+            // Зберегти в localStorage
+            try {
+              localStorage.setItem('loe_schedule_hash', currentScheduleHash);
+              console.log('💾 Збережено хеш графіка в localStorage');
+            } catch (err) {
+              console.error('❌ Помилка збереження хешу графіка в localStorage:', err);
+            }
           }
 
           // Оновлення попереднього значення довжини архіву (в кінці, після всіх перевірок)
           previousArchiveLengthRef.current = archiveLength;
+          // Зберегти в localStorage
+          try {
+            localStorage.setItem('loe_archive_length', archiveLength.toString());
+            console.log('💾 Збережено довжину архіву в localStorage:', archiveLength);
+          } catch (err) {
+            console.error('❌ Помилка збереження довжини архіву в localStorage:', err);
+          }
         } else {
           console.warn('⚠️ menu.menuItems порожній або не існує');
           setError('Дані меню порожні');
