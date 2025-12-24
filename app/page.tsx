@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface MenuItem {
   '@id': string;
@@ -39,12 +39,6 @@ interface MenuData {
   mobileHtml: string;
   archiveLength: number;
   isShowingTomorrow?: boolean;
-  // Дані для Tomorrow (графік на завтра)
-  tomorrowDesktopImageUrl?: string;
-  tomorrowMobileImageUrl?: string;
-  tomorrowDesktopHtml?: string;
-  tomorrowMobileHtml?: string;
-  hasTomorrow?: boolean;
 }
 
 export default function Home() {
@@ -60,34 +54,6 @@ export default function Home() {
   const swUpdateCheckRef = useRef<boolean>(false);
 
   useEffect(() => {
-    console.log('🚀 Ініціалізація додатку...');
-
-    // Завантажити попередні значення з localStorage при старті
-    if (typeof window !== 'undefined') {
-      try {
-        const savedArchiveHash = localStorage.getItem('loe_archive_hash');
-        const savedScheduleHash = localStorage.getItem('loe_schedule_hash');
-        const savedArchiveLength = localStorage.getItem('loe_archive_length');
-
-        if (savedArchiveHash) {
-          previousArchiveHashRef.current = savedArchiveHash;
-          console.log('📦 Завантажено збережений хеш архіву з localStorage:', savedArchiveHash.substring(0, 50));
-        }
-
-        if (savedScheduleHash) {
-          previousScheduleHashRef.current = savedScheduleHash;
-          console.log('📦 Завантажено збережений хеш графіка з localStorage:', savedScheduleHash.substring(0, 50));
-        }
-
-        if (savedArchiveLength) {
-          previousArchiveLengthRef.current = parseInt(savedArchiveLength, 10);
-          console.log('📦 Завантажено збережену довжину архіву з localStorage:', savedArchiveLength);
-        }
-      } catch (err) {
-        console.error('❌ Помилка завантаження з localStorage:', err);
-      }
-    }
-
     // Запит на дозвіл для сповіщень
     if ('Notification' in window) {
       const currentPermission = Notification.permission;
@@ -113,6 +79,19 @@ export default function Home() {
             console.log('🔄 Виконую примусове перезавантаження...');
             window.location.reload();
           }, 1000);
+        }
+
+        // Обробка сповіщень про зміни від SW
+        if (event.data.type === 'SCHEDULE_CHANGED') {
+          console.log('🔔 SW повідомив про зміну графіка!');
+          // Оновлюємо дані
+          fetchLatestImage();
+        }
+
+        if (event.data.type === 'ARCHIVE_CHANGED') {
+          console.log('🔔 SW повідомив про зміну архіву!');
+          // Оновлюємо дані
+          fetchLatestImage();
         }
       };
 
@@ -154,24 +133,14 @@ export default function Home() {
                       console.log('🔄 Нова версія встановлена!');
 
                       if (navigator.serviceWorker.controller) {
-                        // Є старий SW - оновлюємо автоматично
+                        // Є старий SW - оновлюємо
                         console.log('🔄 Оновлюю з старої версії...');
                         if (!swUpdateCheckRef.current) {
                           swUpdateCheckRef.current = true;
-                          
-                          // Показати сповіщення про оновлення
-                          if (notificationPermission === 'granted') {
-                            showNotification(
-                              '🔄 Оновлення додатку',
-                              'Встановлено нову версію. Перезавантаження через 3 секунди...'
-                            );
-                          }
-                          
-                          // Автоматичне перезавантаження через 3 секунди
                           setTimeout(() => {
                             console.log('🔄 Автоматичне перезавантаження...');
                             window.location.reload();
-                          }, 3000);
+                          }, 2000);
                         }
                       } else {
                         // Перше встановлення
@@ -223,7 +192,9 @@ export default function Home() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
-    return () => window.removeEventListener('resize', checkMobile);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -248,7 +219,7 @@ export default function Home() {
       .join('|');
   };
 
-  const showNotification = useCallback(async (title: string, body: string) => {
+  const showNotification = async (title: string, body: string) => {
     console.log('🔔 Спроба показати notification...');
     console.log('🔔 Дозвіл на notifications:', notificationPermission);
 
@@ -264,11 +235,8 @@ export default function Home() {
             body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            tag: `schedule-update-${Date.now()}`, // Унікальний tag для кожного сповіщення
-            requireInteraction: true, // Показувати до закриття користувачем
-            silent: false, // НЕ тихе сповіщення - з звуком
-            dir: 'ltr', // Напрямок тексту
-            lang: 'uk', // Мова
+            tag: 'schedule-update',
+            requireInteraction: false,
           } as NotificationOptions);
           console.log('✅ Notification показано через Service Worker');
         } else {
@@ -278,11 +246,7 @@ export default function Home() {
             body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            tag: `schedule-update-${Date.now()}`, // Унікальний tag для кожного сповіщення
-            requireInteraction: true,
-            silent: false,
-            dir: 'ltr',
-            lang: 'uk',
+            tag: 'schedule-update',
           });
           console.log('✅ Notification створено:', notification);
         }
@@ -294,9 +258,7 @@ export default function Home() {
             body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            tag: `schedule-update-${Date.now()}`, // Унікальний tag для кожного сповіщення
-            requireInteraction: true,
-            silent: false,
+            tag: 'schedule-update',
           });
           console.log('✅ Notification створено через fallback:', notification);
         } catch (fallbackErr) {
@@ -306,7 +268,7 @@ export default function Home() {
     } else {
       console.warn('⚠️ Notification не показано - дозвіл:', notificationPermission);
     }
-  }, [notificationPermission]);
+  };
 
   const fetchLatestImage = async () => {
     try {
@@ -341,18 +303,8 @@ export default function Home() {
 
       const data: MenuResponse = await response.json();
       console.log('✅ Дані отримано, розмір:', JSON.stringify(data).length);
-      console.log('📋 Повна структура відповіді:', JSON.stringify(data).substring(0, 500));
-      console.log('📋 Ключі верхнього рівня:', Object.keys(data));
       console.log('📋 hydra:member існує?', !!data['hydra:member']);
-      console.log('📋 hydra:member тип:', typeof data['hydra:member']);
-      console.log('📋 hydra:member є масив?', Array.isArray(data['hydra:member']));
       console.log('📋 hydra:member length:', data['hydra:member']?.length);
-
-      // Перевірка чи є дані взагалі
-      if (!data || typeof data !== 'object') {
-        console.error('❌ Відповідь не є об\'єктом!');
-        throw new Error('Неправильний формат відповіді API');
-      }
 
       if (data['hydra:member'] && data['hydra:member'].length > 0) {
         const menu = data['hydra:member'][0];
@@ -363,70 +315,42 @@ export default function Home() {
           const archiveLength = archiveItem ? archiveItem.children.length : 0;
           const archiveChildren = archiveItem ? archiveItem.children : [];
 
-          console.log('📊 ========== ПЕРЕВІРКА АРХІВУ ==========');
           console.log('📊 Поточна довжина архіву:', archiveLength);
           console.log('📊 Попередня довжина архіву:', previousArchiveLengthRef.current);
-          console.log('📊 Це перше завантаження?', previousArchiveLengthRef.current === null);
 
           // Створюємо хеш архіву для детальнішого відстеження
           const currentArchiveHash = createArchiveHash(archiveChildren);
           console.log('🔑 Поточний хеш архіву:', currentArchiveHash);
           console.log('🔑 Попередній хеш архіву:', previousArchiveHashRef.current);
-          console.log('🔑 Хеші різні?', previousArchiveHashRef.current !== currentArchiveHash);
-          console.log('🔑 Попередній хеш не null?', previousArchiveHashRef.current !== null);
 
           // Перевірка чи змінився архів (довжина АБО вміст)
           const archiveChanged = previousArchiveHashRef.current !== null &&
                                   previousArchiveHashRef.current !== currentArchiveHash;
 
-          console.log('🔍 archiveChanged =', archiveChanged);
-
           if (archiveChanged) {
             const lengthChanged = previousArchiveLengthRef.current !== archiveLength;
-            console.log('🔔 ==========================================');
-            console.log('🔔 🔔 🔔 АРХІВ ЗМІНИВСЯ! 🔔 🔔 🔔');
-            console.log('🔔 ==========================================');
+            console.log('🔔 АРХІВ ЗМІНИВСЯ! Показую сповіщення');
             console.log('🔔 Довжина змінилася:', lengthChanged);
             console.log('🔔 Попередня довжина:', previousArchiveLengthRef.current);
             console.log('🔔 Нова довжина:', archiveLength);
-            console.log('🔔 Різниця:', archiveLength - (previousArchiveLengthRef.current || 0));
             console.log('🔔 Попередній хеш:', previousArchiveHashRef.current);
             console.log('🔔 Новий хеш:', currentArchiveHash);
-            console.log('🔔 Дозвіл Notification.permission:', Notification.permission);
-            console.log('🔔 Дозвіл notificationPermission state:', notificationPermission);
 
             if (lengthChanged) {
-              console.log('🔔 Викликаю showNotification для зміни довжини...');
-              await showNotification(
+              showNotification(
                 'Архів графіків оновлено!',
                 `Кількість графіків в архіві змінилася: було ${previousArchiveLengthRef.current}, стало ${archiveLength}`
               );
             } else {
-              console.log('🔔 Викликаю showNotification для зміни вмісту...');
-              await showNotification(
+              showNotification(
                 'Архів графіків оновлено!',
                 'Зміни в архіві графіків відключень. Перевірте оновлення.'
               );
             }
-            console.log('✅ ✅ ✅ Сповіщення про архів ВІДПРАВЛЕНО!');
-          } else {
-            console.log('ℹ️ Архів НЕ змінився, сповіщення не потрібне');
-            if (previousArchiveHashRef.current === null) {
-              console.log('ℹ️ Причина: перше завантаження (previousArchiveHashRef = null)');
-            } else if (previousArchiveHashRef.current === currentArchiveHash) {
-              console.log('ℹ️ Причина: хеші однакові');
-            }
           }
 
-          // ВАЖЛИВО: Оновлюємо попереднє значення хешу архіву ТІЛЬКИ ПІСЛЯ перевірки
+          // Оновлюємо попереднє значення хешу архіву
           previousArchiveHashRef.current = currentArchiveHash;
-          // Зберегти в localStorage для збереження між перезавантаженнями
-          try {
-            localStorage.setItem('loe_archive_hash', currentArchiveHash);
-            console.log('💾 Збережено хеш архіву в localStorage');
-          } catch (err) {
-            console.error('❌ Помилка збереження в localStorage:', err);
-          }
 
           // Знайти Today та Tomorrow елементи
           const todayItem = menu.menuItems.find(item => item.name === 'Today');
@@ -497,37 +421,21 @@ export default function Home() {
               mobileHtml: itemToShow.rawMobileHtml || itemToShow.description || '',
               archiveLength,
               isShowingTomorrow,
-              // Додаємо Tomorrow дані окремо (незалежно від того, що показується зараз)
-              tomorrowDesktopImageUrl: tomorrowItem?.imageUrl || '',
-              tomorrowMobileImageUrl: tomorrowItem?.slug || '',
-              tomorrowDesktopHtml: tomorrowItem?.rawHtml || tomorrowItem?.description || '',
-              tomorrowMobileHtml: tomorrowItem?.rawMobileHtml || tomorrowItem?.description || '',
-              hasTomorrow: !!tomorrowHasSchedule,
             };
 
             console.log(`💾 Встановлюю menuData з графіком (${isShowingTomorrow ? 'Tomorrow' : 'Today'}):`, newMenuData);
-            console.log('📅 Tomorrow дані:', {
-              hasTomorrow: tomorrowHasSchedule,
-              tomorrowDesktopImageUrl: tomorrowItem?.imageUrl,
-              tomorrowMobileImageUrl: tomorrowItem?.slug,
-            });
 
             // Перевірка чи змінився графік (порівнюємо хеші)
             if (previousScheduleHashRef.current !== null &&
                 previousScheduleHashRef.current !== currentScheduleHash) {
               // Графік змінився!
-              console.log('🔔 ========================================');
               console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
-              console.log('🔔 ========================================');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              console.log('🔔 Дозвіл:', Notification.permission);
-              
-              await showNotification(
+              showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
               );
-              console.log('✅ Сповіщення про графік відправлено');
             } else if (previousScheduleHashRef.current === null) {
               console.log('ℹ️ Перше завантаження - сповіщення не показується');
             } else {
@@ -536,13 +444,6 @@ export default function Home() {
 
             // Оновлення попереднього значення хешу
             previousScheduleHashRef.current = currentScheduleHash;
-            // Зберегти в localStorage
-            try {
-              localStorage.setItem('loe_schedule_hash', currentScheduleHash);
-              console.log('💾 Збережено хеш графіка в localStorage');
-            } catch (err) {
-              console.error('❌ Помилка збереження хешу графіка в localStorage:', err);
-            }
             setMenuData(newMenuData);
           } else {
             // Немає ні Today ні Tomorrow - показуємо повідомлення
@@ -552,52 +453,27 @@ export default function Home() {
               desktopHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               mobileHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               archiveLength,
-              // Додаємо Tomorrow дані навіть якщо немає Today
-              tomorrowDesktopImageUrl: tomorrowItem?.imageUrl || '',
-              tomorrowMobileImageUrl: tomorrowItem?.slug || '',
-              tomorrowDesktopHtml: tomorrowItem?.rawHtml || tomorrowItem?.description || '',
-              tomorrowMobileHtml: tomorrowItem?.rawMobileHtml || tomorrowItem?.description || '',
-              hasTomorrow: !!tomorrowHasSchedule,
             };
             console.log('💾 Встановлюю menuData БЕЗ графіка:', emptyMenuData);
 
             // Перевірка чи змінився стан (з'явився/зник графік)
             if (previousScheduleHashRef.current !== null &&
                 previousScheduleHashRef.current !== currentScheduleHash) {
-              console.log('🔔 ========================================');
               console.log('🔔 СТАН ГРАФІКІВ ЗМІНИВСЯ! Показую сповіщення');
-              console.log('🔔 ========================================');
               console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
               console.log('🔔 Новий хеш:', currentScheduleHash);
-              console.log('🔔 Дозвіл:', Notification.permission);
-              
-              await showNotification(
+              showNotification(
                 'Графіки відключень оновлено!',
                 'Графіки відключень змінилися. Перевірте актуальну інформацію.'
               );
-              console.log('✅ Сповіщення про стан відправлено');
             }
 
             setMenuData(emptyMenuData);
             previousScheduleHashRef.current = currentScheduleHash;
-            // Зберегти в localStorage
-            try {
-              localStorage.setItem('loe_schedule_hash', currentScheduleHash);
-              console.log('💾 Збережено хеш графіка в localStorage');
-            } catch (err) {
-              console.error('❌ Помилка збереження хешу графіка в localStorage:', err);
-            }
           }
 
           // Оновлення попереднього значення довжини архіву (в кінці, після всіх перевірок)
           previousArchiveLengthRef.current = archiveLength;
-          // Зберегти в localStorage
-          try {
-            localStorage.setItem('loe_archive_length', archiveLength.toString());
-            console.log('💾 Збережено довжину архіву в localStorage:', archiveLength);
-          } catch (err) {
-            console.error('❌ Помилка збереження довжини архіву в localStorage:', err);
-          }
         } else {
           console.warn('⚠️ menu.menuItems порожній або не існує');
           setError('Дані меню порожні');
@@ -623,13 +499,36 @@ export default function Home() {
     // Перший запит при завантаженні
     fetchLatestImage();
 
-    // Запит кожні 5 хвилин (300000 мс)
+    // Запит кожну хвилину (60000 мс)
     const interval = setInterval(() => {
+      console.log('⏰ Автоматична перевірка оновлень (1 хв)');
       fetchLatestImage();
-    }, 300000);
+    }, 60000);
 
-    // Очищення інтервалу при розмонтуванні компонента
-    return () => clearInterval(interval);
+    // Додаємо слухача для перевірки при поверненні на вкладку
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ Вкладка стала активною - перевіряю оновлення');
+        fetchLatestImage();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Додаємо слухача для фокусу вікна
+    const handleFocus = () => {
+      console.log('🎯 Вікно отримало фокус - перевіряю оновлення');
+      fetchLatestImage();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    // Очищення при розмонтуванні компонента
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -683,18 +582,6 @@ export default function Home() {
         <h1 className="text-3xl font-semibold text-black dark:text-zinc-50 text-center">
           Графік відключень електроенергії
         </h1>
-
-        {/* Підказка для встановлення PWA на iOS */}
-        {typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window.navigator as unknown as {standalone?: boolean}).standalone && (
-          <div className="w-full bg-green-100 dark:bg-green-900 p-4 rounded-lg">
-            <p className="text-sm text-green-800 dark:text-green-200 text-center mb-2 font-semibold">
-              📱 Встановіть додаток на iPhone
-            </p>
-            <p className="text-xs text-green-700 dark:text-green-300 text-center">
-              Натисніть <span className="font-bold">Поділитися</span> (⬆️) → <span className="font-bold">На екран &quot;Домой&quot;</span>
-            </p>
-          </div>
-        )}
 
         {notificationPermission === 'default' && (
           <div className="w-full bg-blue-100 dark:bg-blue-900 p-4 rounded-lg">
@@ -773,50 +660,8 @@ export default function Home() {
               />
             )}
 
-            {/* Блок Tomorrow графіка */}
-            {!menuData.isShowingTomorrow && (
-              <div className="w-full flex flex-col items-center gap-4 mt-8 pt-8 border-t-2 border-zinc-200 dark:border-zinc-700">
-                <h2 className="text-2xl font-semibold text-zinc-800 dark:text-zinc-200">
-                  📅 Графік на завтра
-                </h2>
-                
-                {menuData.hasTomorrow ? (
-                  <>
-                    {(isMobile ? menuData.tomorrowMobileImageUrl : menuData.tomorrowDesktopImageUrl) || 
-                     (isMobile ? menuData.tomorrowDesktopImageUrl : menuData.tomorrowMobileImageUrl) ? (
-                      <img
-                        src={`https://api.loe.lviv.ua${
-                          (isMobile ? menuData.tomorrowMobileImageUrl : menuData.tomorrowDesktopImageUrl) ||
-                          (isMobile ? menuData.tomorrowDesktopImageUrl : menuData.tomorrowMobileImageUrl)
-                        }`}
-                        alt="Графік відключень на завтра"
-                        className="w-full h-auto rounded-lg shadow-lg"
-                      />
-                    ) : null}
-                    
-                    {((isMobile ? menuData.tomorrowMobileHtml : menuData.tomorrowDesktopHtml) ||
-                      (isMobile ? menuData.tomorrowDesktopHtml : menuData.tomorrowMobileHtml)) && (
-                      <div
-                        className="w-full text-zinc-800 dark:text-zinc-200 text-sm md:text-base text-center"
-                        dangerouslySetInnerHTML={{ 
-                          __html: (isMobile ? menuData.tomorrowMobileHtml : menuData.tomorrowDesktopHtml) ||
-                                  (isMobile ? menuData.tomorrowDesktopHtml : menuData.tomorrowMobileHtml) || ''
-                        }}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <div className="w-full bg-zinc-100 dark:bg-zinc-800 p-6 rounded-lg">
-                    <p className="text-lg text-center text-zinc-600 dark:text-zinc-400">
-                      📭 Ще немає графіка на завтра
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Оновлюється автоматично кожні 5 хвилин
+              Оновлюється автоматично кожну хвилину
             </p>
 
             {menuData.archiveLength > 0 && (
@@ -849,7 +694,7 @@ export default function Home() {
               {notificationPermission === 'granted' && (
                 <button
                   onClick={() => {
-                    showNotification('Тест!', 'Це тестове сповіщення зі звуком пристрою');
+                    showNotification('Тест!', 'Це тестове сповіщення з системним звуком');
                   }}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
                 >

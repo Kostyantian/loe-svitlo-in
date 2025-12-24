@@ -1,6 +1,6 @@
 // ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
-const CACHE_VERSION = 'v4';
-const APP_VERSION = '1.0.4'; // Версія додатку для відображення користувачу
+const CACHE_VERSION = 'v8';
+const APP_VERSION = '1.0.8'; // Версія додатку для відображення користувачу
 const CACHE_NAME = `loe-widget-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -8,6 +8,131 @@ const urlsToCache = [
   '/icon-192.png',
   '/icon-512.png',
 ];
+
+// Зберігаємо попередній стан для порівняння
+let previousScheduleHash = null;
+let previousArchiveHash = null;
+
+// Функція для створення хешу графіка
+function createScheduleHash(todayItem, tomorrowItem) {
+  const todayHash = todayItem
+    ? `T:${todayItem.imageUrl || ''}|${todayItem.slug || ''}|${todayItem.description || ''}`
+    : 'T:empty';
+  const tomorrowHash = tomorrowItem
+    ? `TM:${tomorrowItem.imageUrl || ''}|${tomorrowItem.slug || ''}|${tomorrowItem.description || ''}`
+    : 'TM:empty';
+  return `${todayHash}::${tomorrowHash}`;
+}
+
+// Функція для створення хешу архіву
+function createArchiveHash(archiveChildren) {
+  if (!archiveChildren || archiveChildren.length === 0) {
+    return 'ARCHIVE:empty';
+  }
+  return archiveChildren
+    .map(item => `${item.id}:${item.imageUrl || ''}:${item.slug || ''}`)
+    .join('|');
+}
+
+// Перевірка оновлень графіків
+async function checkForUpdates() {
+  try {
+    console.log('[SW] 🔍 Перевірка оновлень графіків...');
+    
+    const response = await fetch('https://api.loe.lviv.ua/api/menus?page=1&type=photo-grafic', {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'LOE-Mobile-App/1.0',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.log('[SW] ❌ Помилка отримання даних:', response.status);
+      return;
+    }
+
+    const data = await response.json();
+    
+    if (data['hydra:member'] && data['hydra:member'].length > 0) {
+      const menu = data['hydra:member'][0];
+      
+      if (menu.menuItems && menu.menuItems.length > 0) {
+        const todayItem = menu.menuItems.find(item => item.name === 'Today');
+        const tomorrowItem = menu.menuItems.find(item => item.name === 'Tomorrow');
+        const archiveItem = menu.menuItems.find(item => item.name === 'Arhiv');
+        
+        const currentScheduleHash = createScheduleHash(todayItem, tomorrowItem);
+        const currentArchiveHash = createArchiveHash(archiveItem ? archiveItem.children : []);
+        
+        // Перевірка змін графіка
+        if (previousScheduleHash !== null && previousScheduleHash !== currentScheduleHash) {
+          console.log('[SW] 🔔 ГРАФІК ЗМІНИВСЯ! Відправка сповіщення');
+          
+          // Відправка сповіщення всім клієнтам
+          const clients = await self.clients.matchAll({ type: 'window' });
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'SCHEDULE_CHANGED',
+              scheduleHash: currentScheduleHash
+            });
+          });
+          
+          // Показати системне сповіщення
+          self.registration.showNotification('Графік відключень оновлено!', {
+            body: 'З\'явився новий графік погодинних відключень електроенергії.',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'schedule-update',
+            requireInteraction: false,
+            vibrate: [200, 100, 200],
+          });
+        }
+        
+        // Перевірка змін архіву
+        if (previousArchiveHash !== null && previousArchiveHash !== currentArchiveHash) {
+          console.log('[SW] 🔔 АРХІВ ЗМІНИВСЯ! Відправка сповіщення');
+          
+          // Відправка сповіщення всім клієнтам
+          const clients = await self.clients.matchAll({ type: 'window' });
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'ARCHIVE_CHANGED',
+              archiveHash: currentArchiveHash
+            });
+          });
+          
+          // Показати системне сповіщення
+          self.registration.showNotification('Архів графіків оновлено!', {
+            body: 'Зміни в архіві графіків відключень. Перевірте оновлення.',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'archive-update',
+            requireInteraction: false,
+            vibrate: [200, 100, 200],
+          });
+        }
+        
+        // Оновлюємо збережені хеші
+        previousScheduleHash = currentScheduleHash;
+        previousArchiveHash = currentArchiveHash;
+        
+        console.log('[SW] ✅ Перевірка завершена, хеші оновлено');
+      }
+    }
+  } catch (error) {
+    console.error('[SW] ❌ Помилка перевірки оновлень:', error);
+  }
+}
+
+// Запускаємо періодичну перевірку кожну хвилину (60000 мс)
+setInterval(() => {
+  console.log('[SW] ⏰ Автоматична перевірка в SW');
+  checkForUpdates();
+}, 60000);
+
+// Перша перевірка при запуску SW
+checkForUpdates();
 
 self.addEventListener('install', (event) => {
   console.log('[SW] Встановлення нової версії:', CACHE_VERSION, 'App:', APP_VERSION);
@@ -48,6 +173,18 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // Ігноруємо запити до chunk файлів Next.js та HMR
+  if (
+    url.pathname.includes('/_next/') ||
+    url.pathname.includes('/static/') ||
+    url.pathname.includes('.chunk.js') ||
+    url.pathname.includes('.hot-update.') ||
+    url.pathname.includes('webpack')
+  ) {
+    // Просто пропускаємо ці запити, не обробляємо їх
+    return;
+  }
+
   // НЕ кешувати API запити - завжди брати свіжі дані
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
@@ -61,7 +198,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Для статичних файлів - спочатку мережа, потім кеш
+  // Для статичних файлів PWA - спочатку мережа, потім кеш
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -132,17 +269,8 @@ self.addEventListener('message', (event) => {
       icon,
       badge,
       tag,
-      requireInteraction: true, // Показувати до закриття користувачем
-      silent: false, // НЕ тихий режим - з звуком системним
-      vibrate: [200, 100, 200, 100, 200], // Вібрація для мобільних
-      timestamp: Date.now(), // Час сповіщення
-      dir: 'ltr',
-      lang: 'uk',
-      // Дані для кліку
-      data: {
-        url: '/',
-        timestamp: Date.now()
-      }
+      requireInteraction: false,
+      vibrate: [200, 100, 200],
     });
   }
 
