@@ -39,6 +39,9 @@ interface MenuData {
   mobileHtml: string;
   archiveLength: number;
   isShowingTomorrow?: boolean;
+  hasTomorrowSchedule?: boolean;
+  tomorrowDesktopImageUrl?: string;
+  tomorrowMobileImageUrl?: string;
 }
 
 export default function Home() {
@@ -108,13 +111,11 @@ export default function Home() {
             return registration.unregister();
           })
         ).then(() => {
-          console.log('✅ Всі старі SW видалено, реєструю новий');
 
           // Реєстрація нового Service Worker
           navigator.serviceWorker
             .register('/sw.js', { updateViaCache: 'none' })
             .then((registration) => {
-              console.log('✅ Service Worker зареєстровано:', registration);
 
               // Перевірка оновлень кожні 30 секунд
               setInterval(() => {
@@ -125,16 +126,16 @@ export default function Home() {
               // Автоматичне оновлення при виявленні нової версії
               registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
-                console.log('🔄 Знайдено нову версію Service Worker');
+
 
                 if (newWorker) {
                   newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed') {
-                      console.log('🔄 Нова версія встановлена!');
+
 
                       if (navigator.serviceWorker.controller) {
                         // Є старий SW - оновлюємо
-                        console.log('🔄 Оновлюю з старої версії...');
+
                         if (!swUpdateCheckRef.current) {
                           swUpdateCheckRef.current = true;
                           setTimeout(() => {
@@ -181,11 +182,6 @@ export default function Home() {
     const checkMobile = () => {
       const width = window.innerWidth;
       const isMobileDevice = width < 768;
-      console.log('📱 Перевірка розміру екрану:', {
-        width,
-        isMobile: isMobileDevice,
-        userAgent: navigator.userAgent
-      });
       setIsMobile(isMobileDevice);
     };
 
@@ -273,8 +269,7 @@ export default function Home() {
   const fetchLatestImage = async () => {
     try {
       setError(null);
-      console.log('🔄 Починаю fetch даних...');
-      console.log('📱 User Agent:', navigator.userAgent);
+
 
       // Перевірка дозволу на notifications
       if ('Notification' in window) {
@@ -294,17 +289,14 @@ export default function Home() {
         cache: 'no-store',
       });
 
-      console.log('📊 Response status:', response.status);
-      console.log('📊 Response ok:', response.ok);
+
 
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
 
       const data: MenuResponse = await response.json();
-      console.log('✅ Дані отримано, розмір:', JSON.stringify(data).length);
-      console.log('📋 hydra:member існує?', !!data['hydra:member']);
-      console.log('📋 hydra:member length:', data['hydra:member']?.length);
+
 
       if (data['hydra:member'] && data['hydra:member'].length > 0) {
         const menu = data['hydra:member'][0];
@@ -315,26 +307,19 @@ export default function Home() {
           const archiveLength = archiveItem ? archiveItem.children.length : 0;
           const archiveChildren = archiveItem ? archiveItem.children : [];
 
-          console.log('📊 Поточна довжина архіву:', archiveLength);
-          console.log('📊 Попередня довжина архіву:', previousArchiveLengthRef.current);
+
 
           // Створюємо хеш архіву для детальнішого відстеження
           const currentArchiveHash = createArchiveHash(archiveChildren);
-          console.log('🔑 Поточний хеш архіву:', currentArchiveHash);
-          console.log('🔑 Попередній хеш архіву:', previousArchiveHashRef.current);
+
 
           // Перевірка чи змінився архів (довжина АБО вміст)
           const archiveChanged = previousArchiveHashRef.current !== null &&
-                                  previousArchiveHashRef.current !== currentArchiveHash;
+            previousArchiveHashRef.current !== currentArchiveHash;
 
           if (archiveChanged) {
             const lengthChanged = previousArchiveLengthRef.current !== archiveLength;
-            console.log('🔔 АРХІВ ЗМІНИВСЯ! Показую сповіщення');
-            console.log('🔔 Довжина змінилася:', lengthChanged);
-            console.log('🔔 Попередня довжина:', previousArchiveLengthRef.current);
-            console.log('🔔 Нова довжина:', archiveLength);
-            console.log('🔔 Попередній хеш:', previousArchiveHashRef.current);
-            console.log('🔔 Новий хеш:', currentArchiveHash);
+
 
             if (lengthChanged) {
               showNotification(
@@ -356,40 +341,31 @@ export default function Home() {
           const todayItem = menu.menuItems.find(item => item.name === 'Today');
           const tomorrowItem = menu.menuItems.find(item => item.name === 'Tomorrow');
 
-          console.log('📋 Today item:', {
-            name: todayItem?.name,
-            hasImageUrl: !!todayItem?.imageUrl,
-            hasSlug: !!todayItem?.slug,
-            hasDescription: !!todayItem?.description,
-            imageUrl: todayItem?.imageUrl,
-            slug: todayItem?.slug,
-            description: todayItem?.description?.substring(0, 100),
-            rawHtml: todayItem?.rawHtml?.substring(0, 50),
-            rawMobileHtml: todayItem?.rawMobileHtml?.substring(0, 50),
+
+
+          // Перевірка чи є графік в Today (BOOLEAN!)
+          const todayHasSchedule = !!(todayItem && (todayItem.imageUrl || todayItem.slug || todayItem.rawHtml));
+          const todayHasDescription = !!(todayItem && todayItem.description && todayItem.description.trim().length > 0);
+
+          // Перевірка чи є графік в Tomorrow (BOOLEAN!)
+          const tomorrowHasSchedule = !!(tomorrowItem && (tomorrowItem.imageUrl || tomorrowItem.slug || tomorrowItem.rawHtml));
+
+          console.log('✅ Перевірки (Boolean values):', {
+            todayHasSchedule: todayHasSchedule,
+            todayHasScheduleType: typeof todayHasSchedule,
+            todayHasDescription: todayHasDescription,
+            todayHasDescriptionType: typeof todayHasDescription,
+            tomorrowHasSchedule: tomorrowHasSchedule,
+            tomorrowHasScheduleType: typeof tomorrowHasSchedule,
           });
 
-          console.log('📋 Tomorrow item:', {
-            name: tomorrowItem?.name,
-            hasImageUrl: !!tomorrowItem?.imageUrl,
-            hasSlug: !!tomorrowItem?.slug,
-            hasDescription: !!tomorrowItem?.description,
-            imageUrl: tomorrowItem?.imageUrl,
-            slug: tomorrowItem?.slug,
-            rawHtml: tomorrowItem?.rawHtml?.substring(0, 50),
-            rawMobileHtml: tomorrowItem?.rawMobileHtml?.substring(0, 50),
-          });
-
-          // Перевірка чи є графік в Today
-          const todayHasSchedule = todayItem && todayItem.imageUrl && todayItem.slug;
-          const todayHasDescription = todayItem && todayItem.description && todayItem.description.trim().length > 0;
-
-          // Перевірка чи є графік в Tomorrow
-          const tomorrowHasSchedule = tomorrowItem && tomorrowItem.imageUrl && tomorrowItem.slug;
-
-          console.log('✅ Перевірки:', {
-            todayHasSchedule,
-            todayHasDescription,
-            tomorrowHasSchedule
+          console.log('✅ Перевірки (Raw values):', {
+            todayImageUrl: todayItem?.imageUrl,
+            todaySlug: todayItem?.slug,
+            todayRawHtml: !!todayItem?.rawHtml,
+            tomorrowImageUrl: tomorrowItem?.imageUrl,
+            tomorrowSlug: tomorrowItem?.slug,
+            tomorrowRawHtml: !!tomorrowItem?.rawHtml
           });
 
           // Вибираємо який елемент показувати
@@ -400,18 +376,22 @@ export default function Home() {
             // Якщо є Today - показуємо його
             itemToShow = todayItem;
             isShowingTomorrow = false;
-            console.log('✅ Показую Today');
+            console.log('✅ Показую Today (сьогодні)');
+            console.log('📅 isShowingTomorrow:', isShowingTomorrow, 'TYPE:', typeof isShowingTomorrow);
           } else if (tomorrowHasSchedule) {
             // Якщо немає Today, але є Tomorrow - показуємо Tomorrow
             itemToShow = tomorrowItem;
             isShowingTomorrow = true;
-            console.log('✅ Today немає, показую Tomorrow');
+            console.log('✅ Today немає, показую Tomorrow (завтра)');
+            console.log('📅 isShowingTomorrow:', isShowingTomorrow, 'TYPE:', typeof isShowingTomorrow);
+          } else {
+            console.log('❌ Немає ні Today, ні Tomorrow');
+            console.log('📅 isShowingTomorrow:', isShowingTomorrow, 'TYPE:', typeof isShowingTomorrow);
           }
 
           // Створюємо хеш поточного стану графіків
           const currentScheduleHash = createScheduleHash(todayItem, tomorrowItem);
-          console.log('🔑 Поточний хеш графіка:', currentScheduleHash);
-          console.log('🔑 Попередній хеш графіка:', previousScheduleHashRef.current);
+
 
           if (itemToShow) {
             const newMenuData: MenuData = {
@@ -421,30 +401,33 @@ export default function Home() {
               mobileHtml: itemToShow.rawMobileHtml || itemToShow.description || '',
               archiveLength,
               isShowingTomorrow,
+              hasTomorrowSchedule: tomorrowHasSchedule,
+              tomorrowDesktopImageUrl: tomorrowItem?.imageUrl || '',
+              tomorrowMobileImageUrl: tomorrowItem?.slug || '',
             };
 
-            console.log(`💾 Встановлюю menuData з графіком (${isShowingTomorrow ? 'Tomorrow' : 'Today'}):`, newMenuData);
-
-            // Перевірка чи змінився графік (порівнюємо хеші)
+            console.log(`💾 Встановлюю menuData з графіком (${isShowingTomorrow ? 'Tomorrow' : 'Today'})`);
+            console.log('🎯 newMenuData:', JSON.stringify(newMenuData, null, 2));
+            console.log('🎯 newMenuData.isShowingTomorrow:', newMenuData.isShowingTomorrow);
+            console.log('🎯 newMenuData.hasTomorrowSchedule:', newMenuData.hasTomorrowSchedule);
+            console.log('🎯 Тип newMenuData.isShowingTomorrow:', typeof newMenuData.isShowingTomorrow);
             if (previousScheduleHashRef.current !== null &&
-                previousScheduleHashRef.current !== currentScheduleHash) {
-              // Графік змінився!
-              console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення');
-              console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
-              console.log('🔔 Новий хеш:', currentScheduleHash);
+              previousScheduleHashRef.current !== currentScheduleHash) {
               showNotification(
                 'Графік відключень оновлено!',
                 'З\'явився новий графік погодинних відключень електроенергії.'
               );
-            } else if (previousScheduleHashRef.current === null) {
-              console.log('ℹ️ Перше завантаження - сповіщення не показується');
-            } else {
-              console.log('✅ Графік не змінився - сповіщення не потрібне');
             }
 
             // Оновлення попереднього значення хешу
             previousScheduleHashRef.current = currentScheduleHash;
+            console.log('🔥 ПЕРЕД setMenuData:', {
+              isShowingTomorrow: newMenuData.isShowingTomorrow,
+              type: typeof newMenuData.isShowingTomorrow,
+              willShow: !!newMenuData.isShowingTomorrow
+            });
             setMenuData(newMenuData);
+            console.log('✅ ПІСЛЯ setMenuData виконано');
           } else {
             // Немає ні Today ні Tomorrow - показуємо повідомлення
             const emptyMenuData: MenuData = {
@@ -453,15 +436,16 @@ export default function Home() {
               desktopHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               mobileHtml: '<p><b>Сьогодні графіки відключень не застосовуються</b></p>',
               archiveLength,
+              isShowingTomorrow: false,
+              hasTomorrowSchedule: tomorrowHasSchedule,
+              tomorrowDesktopImageUrl: tomorrowItem?.imageUrl || '',
+              tomorrowMobileImageUrl: tomorrowItem?.slug || '',
             };
             console.log('💾 Встановлюю menuData БЕЗ графіка:', emptyMenuData);
 
             // Перевірка чи змінився стан (з'явився/зник графік)
             if (previousScheduleHashRef.current !== null &&
-                previousScheduleHashRef.current !== currentScheduleHash) {
-              console.log('🔔 СТАН ГРАФІКІВ ЗМІНИВСЯ! Показую сповіщення');
-              console.log('🔔 Попередній хеш:', previousScheduleHashRef.current);
-              console.log('🔔 Новий хеш:', currentScheduleHash);
+              previousScheduleHashRef.current !== currentScheduleHash) {
               showNotification(
                 'Графіки відключень оновлено!',
                 'Графіки відключень змінилися. Перевірте актуальну інформацію.'
@@ -539,12 +523,12 @@ export default function Home() {
   // Fallback: якщо поточний URL порожній, спробувати інший
   if (!currentImageUrl || currentImageUrl.trim() === '') {
     currentImageUrl = isMobile ? menuData?.desktopImageUrl : menuData?.mobileImageUrl;
-    console.log('⚠️ Fallback: використовую альтернативний imageUrl:', currentImageUrl);
+
   }
 
   if (!currentHtml || currentHtml.trim() === '') {
     currentHtml = isMobile ? menuData?.desktopHtml : menuData?.mobileHtml;
-    console.log('⚠️ Fallback: використовую альтернативний HTML:', currentHtml?.substring(0, 50));
+
   }
 
   console.log('🎨 Render state:', {
@@ -632,10 +616,36 @@ export default function Home() {
 
         {!loading && !error && menuData && (
           <div className="w-full flex flex-col items-center gap-6">
+            {(() => {
+              console.log('🎨 RENDER: menuData =', menuData);
+              console.log('🎨 RENDER: menuData.isShowingTomorrow =', menuData.isShowingTomorrow);
+              console.log('🎨 RENDER: menuData.hasTomorrowSchedule =', menuData.hasTomorrowSchedule);
+              console.log('🎨 RENDER: Тип isShowingTomorrow =', typeof menuData.isShowingTomorrow);
+              console.log('🎨 RENDER: Буде показано блок Tomorrow?', !!menuData.isShowingTomorrow);
+              console.log('🎨 RENDER: Буде показано інфо про Tomorrow?', !menuData.isShowingTomorrow && !!menuData.hasTomorrowSchedule);
+              console.log('🎨 RENDER: Умова menuData.isShowingTomorrow ===', menuData.isShowingTomorrow === true);
+              return null;
+            })()}
+
             {menuData.isShowingTomorrow && (
-              <div className="w-full bg-blue-100 dark:bg-blue-900 p-4 rounded-lg">
-                <p className="text-xl text-center text-blue-800 dark:text-blue-200 font-semibold">
-                  📅 Показано графік на завтра
+              <div className="w-full bg-blue-500 dark:bg-blue-600 p-6 rounded-lg shadow-lg border-2 border-blue-600 dark:border-blue-400">
+                <p className="text-2xl text-center text-white font-bold flex items-center justify-center gap-3">
+                  <span className="text-3xl">📅</span>
+                  <span>Показано графік на ЗАВТРА</span>
+                  <span className="text-3xl">📅</span>
+                </p>
+                <p className="text-sm text-center text-blue-100 mt-2">
+                  Графіка на сьогодні немає
+                </p>
+              </div>
+            )}
+            
+            {!menuData.isShowingTomorrow && menuData.desktopImageUrl && (
+              <div className="w-full bg-green-500 dark:bg-green-600 p-4 rounded-lg shadow-lg border-2 border-green-600 dark:border-green-400">
+                <p className="text-lg text-center text-white font-semibold flex items-center justify-center gap-2">
+                  <span className="text-2xl">📅</span>
+                  <span>Показано графік на СЬОГОДНІ</span>
+                  <span className="text-2xl">📅</span>
                 </p>
               </div>
             )}
@@ -676,6 +686,36 @@ export default function Home() {
               </p>
             )}
 
+            {/* Інформація про графік на завтра */}
+            {!menuData.isShowingTomorrow && menuData.hasTomorrowSchedule && (
+              <div className="w-full bg-blue-100 dark:bg-blue-900 p-6 rounded-lg border-2 border-blue-300 dark:border-blue-700">
+                <p className="text-xl text-center text-blue-800 dark:text-blue-200 font-bold flex items-center justify-center gap-2 mb-4">
+                  <span className="text-2xl">📅</span>
+                  <span>Графік на завтра вже доступний!</span>
+                  <span className="text-2xl">📅</span>
+                </p>
+                <p className="text-sm text-center text-blue-700 dark:text-blue-300 mb-4">
+                  Графік відключень на завтра вже опублікований
+                </p>
+                {/* Зображення завтрашнього графіка */}
+                {(() => {
+                  const tomorrowImageUrl = isMobile 
+                    ? (menuData.tomorrowMobileImageUrl || menuData.tomorrowDesktopImageUrl)
+                    : (menuData.tomorrowDesktopImageUrl || menuData.tomorrowMobileImageUrl);
+                  
+                  console.log('🖼️ Tomorrow Image URL:', tomorrowImageUrl);
+                  
+                  return tomorrowImageUrl ? (
+                    <img
+                      src={`https://api.loe.lviv.ua${tomorrowImageUrl}`}
+                      alt="Графік відключень на завтра"
+                      className="w-full h-auto rounded-lg shadow-lg mt-2"
+                    />
+                  ) : null;
+                })()}
+              </div>
+            )}
+
             {/* Блок керування */}
             <div className="w-full max-w-md flex flex-col gap-3 mt-4">
               {/* Кнопка примусового оновлення */}
@@ -708,7 +748,7 @@ export default function Home() {
         {!loading && !error && !menuData && (
           <p className="text-lg text-zinc-600 dark:text-zinc-400">
             Дані не знайдено
-            {menuData || loading || error }
+            {menuData || loading || error}
           </p>
         )}
       </main>

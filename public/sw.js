@@ -1,6 +1,6 @@
 // ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
-const CACHE_VERSION = 'v8';
-const APP_VERSION = '1.0.8'; // Версія додатку для відображення користувачу
+const CACHE_VERSION = 'v11';
+const APP_VERSION = '1.0.11'; // Версія додатку для відображення користувачу
 const CACHE_NAME = `loe-widget-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -39,10 +39,14 @@ async function checkForUpdates() {
   try {
     console.log('[SW] 🔍 Перевірка оновлень графіків...');
     
-    const response = await fetch('https://api.loe.lviv.ua/api/menus?page=1&type=photo-grafic', {
+    // Перевірка дозволу на сповіщення
+    const permission = await self.registration.pushManager?.permissionState?.({ userVisibleOnly: true }) || Notification.permission;
+    console.log('[SW] 🔔 Дозвіл на сповіщення:', permission);
+    
+    // Використовуємо локальний API проксі замість прямого запиту (уникаємо CORS)
+    const response = await fetch('/api/menus', {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'LOE-Mobile-App/1.0',
       },
       cache: 'no-store',
     });
@@ -65,12 +69,22 @@ async function checkForUpdates() {
         const currentScheduleHash = createScheduleHash(todayItem, tomorrowItem);
         const currentArchiveHash = createArchiveHash(archiveItem ? archiveItem.children : []);
         
+        console.log('[SW] 📊 Стан хешів:', {
+          previousSchedule: previousScheduleHash,
+          currentSchedule: currentScheduleHash,
+          scheduleChanged: previousScheduleHash !== currentScheduleHash,
+          previousArchive: previousArchiveHash,
+          currentArchive: currentArchiveHash,
+          archiveChanged: previousArchiveHash !== currentArchiveHash
+        });
+        
         // Перевірка змін графіка
         if (previousScheduleHash !== null && previousScheduleHash !== currentScheduleHash) {
           console.log('[SW] 🔔 ГРАФІК ЗМІНИВСЯ! Відправка сповіщення');
           
           // Відправка сповіщення всім клієнтам
           const clients = await self.clients.matchAll({ type: 'window' });
+          console.log('[SW] 📱 Знайдено клієнтів:', clients.length);
           clients.forEach(client => {
             client.postMessage({
               type: 'SCHEDULE_CHANGED',
@@ -79,7 +93,8 @@ async function checkForUpdates() {
           });
           
           // Показати системне сповіщення
-          self.registration.showNotification('Графік відключень оновлено!', {
+          console.log('[SW] 🔔 Показую системне сповіщення про графік');
+          await self.registration.showNotification('Графік відключень оновлено!', {
             body: 'З\'явився новий графік погодинних відключень електроенергії.',
             icon: '/icon-192.png',
             badge: '/icon-192.png',
@@ -87,6 +102,11 @@ async function checkForUpdates() {
             requireInteraction: false,
             vibrate: [200, 100, 200],
           });
+          console.log('[SW] ✅ Системне сповіщення показано');
+        } else if (previousScheduleHash === null) {
+          console.log('[SW] ℹ️ Перше завантаження графіка - ініціалізація хешу');
+        } else {
+          console.log('[SW] ✅ Графік не змінився');
         }
         
         // Перевірка змін архіву
@@ -95,6 +115,7 @@ async function checkForUpdates() {
           
           // Відправка сповіщення всім клієнтам
           const clients = await self.clients.matchAll({ type: 'window' });
+          console.log('[SW] 📱 Знайдено клієнтів:', clients.length);
           clients.forEach(client => {
             client.postMessage({
               type: 'ARCHIVE_CHANGED',
@@ -103,7 +124,8 @@ async function checkForUpdates() {
           });
           
           // Показати системне сповіщення
-          self.registration.showNotification('Архів графіків оновлено!', {
+          console.log('[SW] 🔔 Показую системне сповіщення про архів');
+          await self.registration.showNotification('Архів графіків оновлено!', {
             body: 'Зміни в архіві графіків відключень. Перевірте оновлення.',
             icon: '/icon-192.png',
             badge: '/icon-192.png',
@@ -111,13 +133,21 @@ async function checkForUpdates() {
             requireInteraction: false,
             vibrate: [200, 100, 200],
           });
+          console.log('[SW] ✅ Системне сповіщення показано');
+        } else if (previousArchiveHash === null) {
+          console.log('[SW] ℹ️ Перше завантаження архіву - ініціалізація хешу');
+        } else {
+          console.log('[SW] ✅ Архів не змінився');
         }
         
         // Оновлюємо збережені хеші
         previousScheduleHash = currentScheduleHash;
         previousArchiveHash = currentArchiveHash;
         
-        console.log('[SW] ✅ Перевірка завершена, хеші оновлено');
+        console.log('[SW] ✅ Перевірка завершена, хеші оновлено:', {
+          schedule: previousScheduleHash?.substring(0, 50),
+          archive: previousArchiveHash?.substring(0, 50)
+        });
       }
     }
   } catch (error) {
@@ -202,8 +232,8 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Кешуємо успішну відповідь
-        if (response && response.status === 200) {
+        // Кешуємо тільки GET запити з успішною відповіддю
+        if (response && response.status === 200 && event.request.method === 'GET') {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseClone);
@@ -212,8 +242,12 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Якщо мережа недоступна - беремо з кешу
-        return caches.match(event.request);
+        // Якщо мережа недоступна - беремо з кешу (тільки для GET)
+        if (event.request.method === 'GET') {
+          return caches.match(event.request);
+        }
+        // Для інших методів повертаємо помилку
+        return new Response('Network error', { status: 503 });
       })
   );
 });

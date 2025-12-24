@@ -5,9 +5,27 @@ const nextConfig: NextConfig = {
   // Правильна генерація статичних файлів для Vercel
   transpilePackages: [],
 
+  // Дозволяємо Service Worker
+  async rewrites() {
+    return [
+      {
+        source: '/sw.js',
+        destination: '/sw.js',
+      },
+    ];
+  },
+
   // Заголовки для запобігання кешуванню
   async headers() {
     return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Content-Type', value: 'application/javascript' },
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
       {
         source: '/api/:path*',
         headers: [
