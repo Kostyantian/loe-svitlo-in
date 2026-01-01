@@ -1,6 +1,6 @@
 // !!!!!!!!!!!!!!ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
-const CACHE_VERSION = 'v13';
-const APP_VERSION = '1.0.13'; 
+const CACHE_VERSION = 'v14';
+const APP_VERSION = '1.0.14'; 
 const CACHE_NAME = `loe-widget-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -175,13 +175,48 @@ async function checkForUpdates() {
 }
 
 // Запускаємо періодичну перевірку кожну хвилину (60000 мс)
+// УВАГА: setInterval працює тільки коли SW активний!
 setInterval(() => {
-  console.log('[SW] ⏰ Автоматична перевірка в SW');
+  console.log('[SW] ⏰ Автоматична перевірка в SW (setInterval)');
   checkForUpdates();
 }, 60000);
 
 // Перша перевірка при запуску SW
 checkForUpdates();
+
+// ============================================
+// PERIODIC BACKGROUND SYNC для фонових оновлень
+// ============================================
+// Це дозволить SW робити запити навіть коли додаток закритий
+
+// Реєстрація Periodic Background Sync
+async function registerPeriodicSync() {
+  try {
+    if ('periodicSync' in self.registration) {
+      // Реєструємо періодичну синхронізацію кожні 60 секунд (мінімум для більшості браузерів - 12 годин, але можна спробувати менше)
+      await self.registration.periodicSync.register('check-schedule-updates', {
+        minInterval: 60 * 1000 // 1 хвилина в мілісекундах
+      });
+      console.log('[SW] ✅ Periodic Background Sync зареєстровано');
+    } else {
+      console.log('[SW] ⚠️ Periodic Background Sync не підтримується цим браузером');
+      console.log('[SW] ℹ️ Використовуємо тільки setInterval (працює коли додаток відкритий)');
+    }
+  } catch (error) {
+    console.error('[SW] ❌ Помилка реєстрації Periodic Background Sync:', error);
+  }
+}
+
+// Обробник для periodicSync події
+self.addEventListener('periodicsync', (event) => {
+  console.log('[SW] 🔄 Periodic Background Sync спрацював!', event.tag);
+  if (event.tag === 'check-schedule-updates') {
+    event.waitUntil(checkForUpdates());
+  }
+});
+
+// Реєструємо Periodic Sync при активації SW
+registerPeriodicSync();
 
 self.addEventListener('install', (event) => {
   console.log('[SW] Встановлення нової версії:', CACHE_VERSION, 'App:', APP_VERSION);

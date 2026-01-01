@@ -55,6 +55,11 @@ export default function Home() {
   const previousScheduleHashRef = useRef<string | null>(null);
   const previousArchiveHashRef = useRef<string | null>(null);
   const swUpdateCheckRef = useRef<boolean>(false);
+  
+  // Стан для відображення банера
+  const [isBannerVisible, setIsBannerVisible] = useState<boolean>(false);
+  const [bannerMessage, setBannerMessage] = useState<string>('');
+  const [bannerType, setBannerType] = useState<'schedule' | 'archive'>('schedule');
 
   useEffect(() => {
     // Запит на дозвіл для сповіщень
@@ -266,6 +271,19 @@ export default function Home() {
     }
   };
 
+  // Функція для показу банера
+  const showBanner = (message: string, type: 'schedule' | 'archive' = 'schedule') => {
+    console.log('🎯 Показую банер:', message);
+    setBannerMessage(message);
+    setBannerType(type);
+    setIsBannerVisible(true);
+    
+    // Автоматично приховати банер через 10 секунд
+    setTimeout(() => {
+      setIsBannerVisible(false);
+    }, 10000);
+  };
+
   const fetchLatestImage = async () => {
     try {
       setError(null);
@@ -320,18 +338,18 @@ export default function Home() {
           if (archiveChanged) {
             const lengthChanged = previousArchiveLengthRef.current !== archiveLength;
 
-
+            const notificationTitle = 'Архів графіків оновлено!';
+            let notificationBody = '';
+            
             if (lengthChanged) {
-              showNotification(
-                'Архів графіків оновлено!',
-                `Кількість графіків в архіві змінилася: було ${previousArchiveLengthRef.current}, стало ${archiveLength}`
-              );
+              notificationBody = `Кількість графіків в архіві змінилася: було ${previousArchiveLengthRef.current}, стало ${archiveLength}`;
             } else {
-              showNotification(
-                'Архів графіків оновлено!',
-                'Зміни в архіві графіків відключень. Перевірте оновлення.'
-              );
+              notificationBody = 'Зміни в архіві графіків відключень. Перевірте оновлення.';
             }
+            
+            // Показуємо і push-сповіщення і банер
+            showNotification(notificationTitle, notificationBody);
+            showBanner(notificationBody, 'archive');
           }
 
           // Оновлюємо попереднє значення хешу архіву
@@ -413,10 +431,9 @@ export default function Home() {
             console.log('🎯 Тип newMenuData.isShowingTomorrow:', typeof newMenuData.isShowingTomorrow);
             if (previousScheduleHashRef.current !== null &&
               previousScheduleHashRef.current !== currentScheduleHash) {
-              showNotification(
-                'Графік відключень оновлено!',
-                'З\'явився новий графік погодинних відключень електроенергії.'
-              );
+              const message = 'З\'явився новий графік погодинних відключень електроенергії.';
+              showNotification('Графік відключень оновлено!', message);
+              showBanner(message, 'schedule');
             }
 
             // Оновлення попереднього значення хешу
@@ -446,10 +463,9 @@ export default function Home() {
             // Перевірка чи змінився стан (з'явився/зник графік)
             if (previousScheduleHashRef.current !== null &&
               previousScheduleHashRef.current !== currentScheduleHash) {
-              showNotification(
-                'Графіки відключень оновлено!',
-                'Графіки відключень змінилися. Перевірте актуальну інформацію.'
-              );
+              const message = 'Графіки відключень змінилися. Перевірте актуальну інформацію.';
+              showNotification('Графіки відключень оновлено!', message);
+              showBanner(message, 'schedule');
             }
 
             setMenuData(emptyMenuData);
@@ -578,6 +594,17 @@ export default function Home() {
             >
               Дозволити сповіщення
             </button>
+          </div>
+        )}
+
+        {notificationPermission === 'granted' && (
+          <div className="w-full bg-green-100 dark:bg-green-900 p-4 rounded-lg border-2 border-green-500">
+            <p className="text-sm text-green-800 dark:text-green-200 text-center mb-2 font-semibold">
+              ✅ Фонові сповіщення активовані!
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300 text-center">
+              Ви будете отримувати сповіщення про зміни графіків навіть коли додаток закритий
+            </p>
           </div>
         )}
 
@@ -738,9 +765,19 @@ export default function Home() {
                   }}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
                 >
-                  � Тестувати сповіщення
+                  🔔 Тестувати сповіщення
                 </button>
               )}
+              
+              {/* Кнопка тесту банера */}
+              <button
+                onClick={() => {
+                  showBanner('Це тестовий банер! Так буде виглядати сповіщення про зміни.', 'schedule');
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded"
+              >
+                🎯 Тестувати банер
+              </button>
             </div>
           </div>
         )}
@@ -750,6 +787,41 @@ export default function Home() {
             Дані не знайдено
             {menuData || loading || error}
           </p>
+        )}
+
+        {/* Банер про зміни в архіві */}
+        {isBannerVisible && (
+          <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-2xl p-4 rounded-lg shadow-2xl mb-4 animate-slide-down ${
+            bannerType === 'archive' 
+              ? 'bg-yellow-100 dark:bg-yellow-900 border-2 border-yellow-500' 
+              : 'bg-green-100 dark:bg-green-900 border-2 border-green-500'
+          }`}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3 flex-1">
+                <span className="text-2xl">
+                  {bannerType === 'archive' ? '📁' : '⚡'}
+                </span>
+                <p className={`text-base font-semibold ${
+                  bannerType === 'archive' 
+                    ? 'text-yellow-800 dark:text-yellow-200' 
+                    : 'text-green-800 dark:text-green-200'
+                }`}>
+                  {bannerMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsBannerVisible(false)}
+                className={`ml-4 text-2xl font-bold ${
+                  bannerType === 'archive'
+                    ? 'text-yellow-700 hover:text-yellow-900 dark:text-yellow-300 dark:hover:text-yellow-100'
+                    : 'text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100'
+                }`}
+                aria-label="Закрити банер"
+              >
+                ×
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>
