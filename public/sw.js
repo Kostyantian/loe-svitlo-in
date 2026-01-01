@@ -1,6 +1,6 @@
-// ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
-const CACHE_VERSION = 'v11';
-const APP_VERSION = '1.0.11'; // Версія додатку для відображення користувачу
+// !!!!!!!!!!!!!!ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
+const CACHE_VERSION = 'v13';
+const APP_VERSION = '1.0.13'; 
 const CACHE_NAME = `loe-widget-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -12,6 +12,7 @@ const urlsToCache = [
 // Зберігаємо попередній стан для порівняння
 let previousScheduleHash = null;
 let previousArchiveHash = null;
+let isFirstCheck = true; // Прапорець для першої перевірки
 
 // Функція для створення хешу графіка
 function createScheduleHash(todayItem, tomorrowItem) {
@@ -81,6 +82,8 @@ async function checkForUpdates() {
         // Перевірка змін графіка
         if (previousScheduleHash !== null && previousScheduleHash !== currentScheduleHash) {
           console.log('[SW] 🔔 ГРАФІК ЗМІНИВСЯ! Відправка сповіщення');
+          console.log('[SW] 🔔 Попередній хеш:', previousScheduleHash.substring(0, 50));
+          console.log('[SW] 🔔 Поточний хеш:', currentScheduleHash.substring(0, 50));
           
           // Відправка сповіщення всім клієнтам
           const clients = await self.clients.matchAll({ type: 'window' });
@@ -92,19 +95,23 @@ async function checkForUpdates() {
             });
           });
           
-          // Показати системне сповіщення
-          console.log('[SW] 🔔 Показую системне сповіщення про графік');
-          await self.registration.showNotification('Графік відключень оновлено!', {
-            body: 'З\'явився новий графік погодинних відключень електроенергії.',
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            tag: 'schedule-update',
-            requireInteraction: false,
-            vibrate: [200, 100, 200],
-          });
-          console.log('[SW] ✅ Системне сповіщення показано');
-        } else if (previousScheduleHash === null) {
-          console.log('[SW] ℹ️ Перше завантаження графіка - ініціалізація хешу');
+          // Показати системне сповіщення ТІЛЬКИ якщо є дозвіл
+          if (permission === 'granted') {
+            console.log('[SW] 🔔 Показую системне сповіщення про графік');
+            await self.registration.showNotification('Графік відключень оновлено!', {
+              body: 'З\'явився новий графік погодинних відключень електроенергії.',
+              icon: '/icon-192.png',
+              badge: '/icon-192.png',
+              tag: 'schedule-update',
+              requireInteraction: false,
+              vibrate: [200, 100, 200],
+            });
+            console.log('[SW] ✅ Системне сповіщення показано');
+          } else {
+            console.warn('[SW] ⚠️ Сповіщення не показано - дозвіл:', permission);
+          }
+        } else if (isFirstCheck) {
+          console.log('[SW] ℹ️ Перше завантаження графіка - ініціалізація хешу (сповіщення не показуємо)');
         } else {
           console.log('[SW] ✅ Графік не змінився');
         }
@@ -112,6 +119,8 @@ async function checkForUpdates() {
         // Перевірка змін архіву
         if (previousArchiveHash !== null && previousArchiveHash !== currentArchiveHash) {
           console.log('[SW] 🔔 АРХІВ ЗМІНИВСЯ! Відправка сповіщення');
+          console.log('[SW] 🔔 Попередній хеш архіву:', previousArchiveHash.substring(0, 50));
+          console.log('[SW] 🔔 Поточний хеш архіву:', currentArchiveHash.substring(0, 50));
           
           // Відправка сповіщення всім клієнтам
           const clients = await self.clients.matchAll({ type: 'window' });
@@ -123,19 +132,23 @@ async function checkForUpdates() {
             });
           });
           
-          // Показати системне сповіщення
-          console.log('[SW] 🔔 Показую системне сповіщення про архів');
-          await self.registration.showNotification('Архів графіків оновлено!', {
-            body: 'Зміни в архіві графіків відключень. Перевірте оновлення.',
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            tag: 'archive-update',
-            requireInteraction: false,
-            vibrate: [200, 100, 200],
-          });
-          console.log('[SW] ✅ Системне сповіщення показано');
-        } else if (previousArchiveHash === null) {
-          console.log('[SW] ℹ️ Перше завантаження архіву - ініціалізація хешу');
+          // Показати системне сповіщення ТІЛЬКИ якщо є дозвіл
+          if (permission === 'granted') {
+            console.log('[SW] 🔔 Показую системне сповіщення про архів');
+            await self.registration.showNotification('Архів графіків оновлено!', {
+              body: 'Зміни в архіві графіків відключень. Перевірте оновлення.',
+              icon: '/icon-192.png',
+              badge: '/icon-192.png',
+              tag: 'archive-update',
+              requireInteraction: false,
+              vibrate: [200, 100, 200],
+            });
+            console.log('[SW] ✅ Системне сповіщення показано');
+          } else {
+            console.warn('[SW] ⚠️ Сповіщення не показано - дозвіл:', permission);
+          }
+        } else if (isFirstCheck) {
+          console.log('[SW] ℹ️ Перше завантаження архіву - ініціалізація хешу (сповіщення не показуємо)');
         } else {
           console.log('[SW] ✅ Архів не змінився');
         }
@@ -143,6 +156,12 @@ async function checkForUpdates() {
         // Оновлюємо збережені хеші
         previousScheduleHash = currentScheduleHash;
         previousArchiveHash = currentArchiveHash;
+        
+        // Після першої перевірки змінюємо прапорець
+        if (isFirstCheck) {
+          isFirstCheck = false;
+          console.log('[SW] ℹ️ Ініціалізація завершена, наступні перевірки будуть відстежувати зміни');
+        }
         
         console.log('[SW] ✅ Перевірка завершена, хеші оновлено:', {
           schedule: previousScheduleHash?.substring(0, 50),
@@ -306,6 +325,16 @@ self.addEventListener('message', (event) => {
       requireInteraction: false,
       vibrate: [200, 100, 200],
     });
+  }
+
+  // Скидання хешів для тестування
+  if (event.data && event.data.type === 'RESET_HASHES') {
+    console.log('[SW] 🔄 Скидання хешів для тестування');
+    previousScheduleHash = null;
+    previousArchiveHash = null;
+    isFirstCheck = false; // Скидаємо прапорець, щоб наступна перевірка показала сповіщення
+    console.log('[SW] ✅ Хеші скинуто, наступна перевірка покаже зміни');
+    event.ports[0]?.postMessage({ success: true });
   }
 
   // Повернути поточну версію при запиті
