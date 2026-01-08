@@ -1,6 +1,6 @@
 // !!!!!!!!!!!!!!ВАЖЛИВО: Збільшуйте версію при кожному оновленні коду!
-const CACHE_VERSION = 'v14';
-const APP_VERSION = '1.0.14'; 
+const CACHE_VERSION = 'v15';
+const APP_VERSION = '1.0.15'; 
 const CACHE_NAME = `loe-widget-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',

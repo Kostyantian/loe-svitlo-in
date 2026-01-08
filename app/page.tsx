@@ -56,6 +56,28 @@ export default function Home() {
   const previousArchiveHashRef = useRef<string | null>(null);
   const swUpdateCheckRef = useRef<boolean>(false);
   
+  // Ініціалізація хешів з localStorage при старті
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedScheduleHash = localStorage.getItem('previousScheduleHash');
+      const savedArchiveHash = localStorage.getItem('previousArchiveHash');
+      const savedArchiveLength = localStorage.getItem('previousArchiveLength');
+      
+      if (savedScheduleHash) {
+        previousScheduleHashRef.current = savedScheduleHash;
+        console.log('📦 Завантажено previousScheduleHash з localStorage:', savedScheduleHash);
+      }
+      if (savedArchiveHash) {
+        previousArchiveHashRef.current = savedArchiveHash;
+        console.log('📦 Завантажено previousArchiveHash з localStorage:', savedArchiveHash);
+      }
+      if (savedArchiveLength) {
+        previousArchiveLengthRef.current = parseInt(savedArchiveLength, 10);
+        console.log('📦 Завантажено previousArchiveLength з localStorage:', savedArchiveLength);
+      }
+    }
+  }, []);
+  
   // Стан для відображення банера
   const [isBannerVisible, setIsBannerVisible] = useState<boolean>(false);
   const [bannerMessage, setBannerMessage] = useState<string>('');
@@ -221,8 +243,12 @@ export default function Home() {
   };
 
   const showNotification = async (title: string, body: string) => {
-    console.log('🔔 Спроба показати notification...');
-    console.log('🔔 Дозвіл на notifications:', notificationPermission);
+    console.log('🔔 ========== ПОЧАТОК ПОКАЗУ NOTIFICATION ==========');
+    console.log('🔔 Title:', title);
+    console.log('🔔 Body:', body);
+    console.log('🔔 Поточний дозвіл на notifications:', notificationPermission);
+    console.log('🔔 Document visibility:', document.visibilityState);
+    console.log('🔔 Window focused:', document.hasFocus());
 
     if (notificationPermission === 'granted') {
       try {
@@ -347,6 +373,7 @@ export default function Home() {
               notificationBody = 'Зміни в архіві графіків відключень. Перевірте оновлення.';
             }
             
+            console.log('🔔 АРХІВ ЗМІНИВСЯ! Показую сповіщення:', notificationBody);
             // Показуємо і push-сповіщення і банер
             showNotification(notificationTitle, notificationBody);
             showBanner(notificationBody, 'archive');
@@ -354,6 +381,11 @@ export default function Home() {
 
           // Оновлюємо попереднє значення хешу архіву
           previousArchiveHashRef.current = currentArchiveHash;
+          // Зберігаємо в localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('previousArchiveHash', currentArchiveHash);
+            console.log('💾 Збережено previousArchiveHash в localStorage:', currentArchiveHash);
+          }
 
           // Знайти Today та Tomorrow елементи
           const todayItem = menu.menuItems.find(item => item.name === 'Today');
@@ -432,12 +464,18 @@ export default function Home() {
             if (previousScheduleHashRef.current !== null &&
               previousScheduleHashRef.current !== currentScheduleHash) {
               const message = 'З\'явився новий графік погодинних відключень електроенергії.';
+              console.log('🔔 ГРАФІК ЗМІНИВСЯ! Показую сповіщення:', message);
               showNotification('Графік відключень оновлено!', message);
               showBanner(message, 'schedule');
             }
 
             // Оновлення попереднього значення хешу
             previousScheduleHashRef.current = currentScheduleHash;
+            // Зберігаємо в localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('previousScheduleHash', currentScheduleHash);
+              console.log('💾 Збережено previousScheduleHash в localStorage:', currentScheduleHash);
+            }
             console.log('🔥 ПЕРЕД setMenuData:', {
               isShowingTomorrow: newMenuData.isShowingTomorrow,
               type: typeof newMenuData.isShowingTomorrow,
@@ -464,16 +502,27 @@ export default function Home() {
             if (previousScheduleHashRef.current !== null &&
               previousScheduleHashRef.current !== currentScheduleHash) {
               const message = 'Графіки відключень змінилися. Перевірте актуальну інформацію.';
+              console.log('🔔 ГРАФІК ЗМІНИВСЯ (Empty)! Показую сповіщення:', message);
               showNotification('Графіки відключень оновлено!', message);
               showBanner(message, 'schedule');
             }
 
             setMenuData(emptyMenuData);
             previousScheduleHashRef.current = currentScheduleHash;
+            // Зберігаємо в localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('previousScheduleHash', currentScheduleHash);
+              console.log('💾 Збережено previousScheduleHash (empty) в localStorage:', currentScheduleHash);
+            }
           }
 
           // Оновлення попереднього значення довжини архіву (в кінці, після всіх перевірок)
           previousArchiveLengthRef.current = archiveLength;
+          // Зберігаємо в localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('previousArchiveLength', archiveLength.toString());
+            console.log('💾 Збережено previousArchiveLength в localStorage:', archiveLength);
+          }
         } else {
           console.warn('⚠️ menu.menuItems порожній або не існує');
           setError('Дані меню порожні');
@@ -713,6 +762,21 @@ export default function Home() {
               </p>
             )}
 
+            {/* Діагностична інформація про збережені хеші */}
+            <details className="w-full text-xs text-zinc-400 dark:text-zinc-500">
+              <summary className="cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300">
+                🔍 Діагностична інформація
+              </summary>
+              <div className="mt-2 p-2 bg-zinc-100 dark:bg-zinc-800 rounded">
+                <p>Schedule Hash: {previousScheduleHashRef.current ? '✅ Збережено' : '❌ Відсутній'}</p>
+                <p>Archive Hash: {previousArchiveHashRef.current ? '✅ Збережено' : '❌ Відсутній'}</p>
+                <p>Archive Length: {previousArchiveLengthRef.current ?? 'Не встановлено'}</p>
+                <p className="mt-1 text-[10px] break-all">
+                  Schedule: {previousScheduleHashRef.current || 'N/A'}
+                </p>
+              </div>
+            </details>
+
             {/* Інформація про графік на завтра */}
             {!menuData.isShowingTomorrow && menuData.hasTomorrowSchedule && (
               <div className="w-full bg-blue-100 dark:bg-blue-900 p-6 rounded-lg border-2 border-blue-300 dark:border-blue-700">
@@ -777,6 +841,25 @@ export default function Home() {
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded"
               >
                 🎯 Тестувати банер
+              </button>
+              
+              {/* Кнопка скидання історії (для тестування) */}
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    localStorage.removeItem('previousScheduleHash');
+                    localStorage.removeItem('previousArchiveHash');
+                    localStorage.removeItem('previousArchiveLength');
+                    previousScheduleHashRef.current = null;
+                    previousArchiveHashRef.current = null;
+                    previousArchiveLengthRef.current = null;
+                    console.log('🗑️ Історія скинута! Наступна перевірка покаже сповіщення якщо є зміни');
+                    alert('✅ Історія змін скинута! При наступному оновленні будуть показані сповіщення.');
+                  }
+                }}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded text-sm"
+              >
+                🗑️ Скинути історію (тест)
               </button>
             </div>
           </div>
